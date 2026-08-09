@@ -11,7 +11,8 @@
     "db:generate": "pnpm --filter @workspace/db generate",
     "db:migrate": "pnpm --filter @workspace/db migrate",
     "db:push": "pnpm --filter @workspace/db push",
-    "db:seed": "pnpm --filter @workspace/db seed"
+    "db:seed": "pnpm --filter @workspace/db seed",
+    "test:functional": "node scripts/functional-test.mjs"
   },
   "devDependencies": {
     "@workspace/eslint-config": "workspace:*",
