@@ -2,16 +2,27 @@
 
 Scribble is a **pnpm + Turborepo** monorepo. The Next.js app lives in `apps/web`, not the repo root.
 
-## Root Directory — this is the fix
+## Root Directory (read this)
 
-| Setting | Value |
-|---------|--------|
-| **Root Directory** | `apps/web` |
-| **Include source files outside of the Root Directory** | ✅ **On** |
+| Your situation | What to set |
+|----------------|-------------|
+| **Recommended** | Root Directory = `apps/web` |
+| **Currently using repo root** | Leave blank — `vercel.json` at repo root handles it |
 
-Leaving Root Directory **blank** (repo root) is wrong for this project and causes errors like:
+**Yes, leaving Root Directory blank (repo root) is a common cause of failures** if `vercel.json` / framework settings are wrong. This repo now supports **both** layouts.
 
-> No Output Directory named "public" found
+### If using repo root (blank Root Directory)
+
+1. Clear **Output Directory** override (must be blank, not `public`)
+2. **Framework Preset** → Next.js
+3. Neon + `AUTH_SECRET` + `NEXT_PUBLIC_APP_URL`
+
+### If using `apps/web` (recommended)
+
+1. Root Directory → `apps/web`
+2. Enable **Include source files outside of the Root Directory**
+3. Clear **Output Directory** override
+4. Same env vars as above
 
 ## Build & Deployment
 
