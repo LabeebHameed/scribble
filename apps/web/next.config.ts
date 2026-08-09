@@ -1,8 +1,11 @@
+import path from "node:path"
+import { fileURLToPath } from "node:url"
 import type { NextConfig } from "next"
 
+const monorepoRoot = path.join(path.dirname(fileURLToPath(import.meta.url)), "../..")
+
 const nextConfig: NextConfig = {
-  // When Vercel deploys from the monorepo root, emit .next at repo root.
-  distDir: process.env.SCRIBBLE_VERCEL_ROOT ? "../../.next" : ".next",
+  outputFileTracingRoot: monorepoRoot,
   transpilePackages: [
     "@workspace/ui",
     "@workspace/core",

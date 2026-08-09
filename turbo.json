@@ -1,7 +1,6 @@
 {
   "$schema": "https://turbo.build/schema.json",
   "ui": "tui",
-  "globalPassThroughEnv": ["SCRIBBLE_VERCEL_ROOT", "VERCEL"],
   "tasks": {
     "build": {
       "dependsOn": ["^build"],
@@ -15,19 +14,9 @@
         "EMBEDDING_MODEL",
         "EMBEDDING_MODE",
         "NEXT_PUBLIC_APP_URL",
-        "VERCEL",
-        "SCRIBBLE_VERCEL_ROOT"
+        "VERCEL"
       ],
       "outputs": [".next/**", "!.next/cache/**", ".vercel/output/**"]
-    },
-    "web#build": {
-      "outputs": [
-        ".next/**",
-        "!.next/cache/**",
-        "../../.next/**",
-        "!.next/../../.next/cache/**",
-        ".vercel/output/**"
-      ]
     },
     "lint": {
       "dependsOn": ["^lint"]

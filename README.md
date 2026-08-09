@@ -32,11 +32,13 @@ Demo login: `demo@scribble.app` / `scribble`
 
 ## Deploy on Vercel
 
-The repo includes [`vercel.json`](vercel.json) with `"framework": "nextjs"` so Vercel deploys the Next.js app from the monorepo root (not a static `public/` folder).
+The repo includes root [`vercel.json`](vercel.json) with `"rootDirectory": "apps/web"` and [`apps/web/vercel.json`](apps/web/vercel.json) for the Next.js app.
 
 1. Import the GitHub repo in Vercel (branch `main`).
-2. **Recommended:** set **Root Directory** to `apps/web` in Project Settings → Build & Deployment (enable “include source files outside root”). If you deploy from the repo root instead, `vercel.json` + root `next.config.ts` handle that layout.
-3. **Do not** override Output Directory to `public` — leave it blank for Next.js.
+2. If deploy still fails, open **Project Settings → Build & Deployment** and confirm:
+   - **Root Directory:** `apps/web` (enable “Include source files outside of the Root Directory”)
+   - **Framework Preset:** Next.js
+   - **Output Directory:** leave blank (not `public`)
 3. Add environment variables in Vercel → Settings → Environment Variables:
    - `DATABASE_URL` — [Neon](https://neon.tech) or Vercel Postgres (must support `pgvector`)
    - `AUTH_SECRET` — long random string
@@ -49,7 +51,7 @@ The repo includes [`vercel.json`](vercel.json) with `"framework": "nextjs"` so V
    ```
 5. Check health: `GET /api/health` should return `{ ok: true, db: "connected" }`.
 
-If build fails with “No Output Directory named public”, clear any custom **Output Directory** in Vercel project settings (leave blank for Next.js) and ensure Framework Preset is **Next.js** (or let [`vercel.json`](vercel.json) override it), then redeploy.
+If build fails with “No Output Directory named public”, clear any custom **Output Directory** in Vercel project settings (leave blank for Next.js), set **Root Directory** to `apps/web`, and redeploy.
 
 ## Environment
 
