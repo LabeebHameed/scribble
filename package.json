@@ -3,8 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "build": "SCRIBBLE_VERCEL_ROOT=1 turbo build --filter=web",
-    "vercel-build": "SCRIBBLE_VERCEL_ROOT=1 turbo build --filter=web",
+    "build": "turbo build --filter=web",
     "dev": "turbo dev",
     "lint": "turbo lint",
     "format": "turbo format",

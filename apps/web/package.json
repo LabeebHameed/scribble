@@ -6,7 +6,6 @@
   "scripts": {
     "dev": "next dev --port 3000",
     "build": "next build",
-    "vercel-build": "cd ../.. && SCRIBBLE_VERCEL_ROOT=1 pnpm turbo build --filter=web",
     "start": "next start",
     "lint": "eslint",
     "format": "prettier --write \"**/*.{ts,tsx}\"",
