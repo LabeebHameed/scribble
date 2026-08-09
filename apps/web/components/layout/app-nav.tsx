@@ -23,7 +23,7 @@ const items = [
 
 export function AppNav() {
   const pathname = usePathname()
-  if (pathname === "/" || pathname === "/login") return null
+  if (pathname === "/") return null
 
   return (
     <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-border/80 bg-background/90 backdrop-blur-md">

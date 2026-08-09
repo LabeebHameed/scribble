@@ -52,8 +52,6 @@ export async function DELETE() {
     const db = getDb()
     // Cascade deletes via user FK
     await db.delete(users).where(eq(users.id, user.id))
-    const { destroySession } = await import("@/lib/auth")
-    await destroySession()
     return json({ deleted: true })
   })
 }

@@ -41,10 +41,6 @@ export default function TodayPage() {
       fetch("/api/plan"),
       fetch("/api/reminders"),
     ])
-    if (planRes.status === 401 || remRes.status === 401) {
-      window.location.href = "/login"
-      return
-    }
     const plan = await planRes.json()
     const rem = await remRes.json()
     setBlocks(plan.blocks || [])

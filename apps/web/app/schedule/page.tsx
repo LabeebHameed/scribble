@@ -35,10 +35,7 @@ export default function SchedulePage() {
       fetch("/api/events"),
       fetch("/api/routines"),
     ])
-    if (p.status === 401) {
-      window.location.href = "/login"
-      return
-    }
+    if (p.status !== 200) return
     setBlocks((await p.json()).blocks || [])
     setEvents((await e.json()).events || [])
     setRoutines((await r.json()).routines || [])

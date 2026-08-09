@@ -26,9 +26,10 @@ pnpm install
 pnpm db:migrate
 pnpm db:seed
 pnpm --filter web dev
+# http://localhost:3000
 ```
 
-Demo login: `demo@scribble.app` / `scribble`
+No sign-in required — the app opens directly to Today.
 
 ## Deploy on Vercel + Neon
 
@@ -36,8 +37,8 @@ Demo login: `demo@scribble.app` / `scribble`
 
 1. Set **Root Directory** to `apps/web` and enable **Include source files outside of the Root Directory**.
 2. Connect Neon for `DATABASE_URL` / `POSTGRES_URL`.
-3. Add `AUTH_SECRET` and `NEXT_PUBLIC_APP_URL`.
-4. After deploy succeeds, run `POST /api/setup` with header `x-setup-secret: YOUR_AUTH_SECRET`.
+3. Add `SETUP_SECRET` (or `AUTH_SECRET`) and `NEXT_PUBLIC_APP_URL`.
+4. After deploy succeeds, run `POST /api/setup` with header `x-setup-secret: YOUR_SETUP_SECRET`.
 
 ## Environment
 

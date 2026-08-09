@@ -31,10 +31,6 @@ export default function TasksPage() {
 
   async function load(f = filter) {
     const res = await fetch(`/api/tasks?filter=${f}`)
-    if (res.status === 401) {
-      window.location.href = "/login"
-      return
-    }
     const data = await res.json()
     setTasks(data.tasks || [])
   }

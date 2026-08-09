@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { eq } from "drizzle-orm"
 import { getDb, isDatabaseConfigured, runMigrations, users } from "@workspace/db"
-import { hashPassword } from "@/lib/auth"
 
 export async function POST(req: NextRequest) {
   const secret = req.headers.get("x-setup-secret")
@@ -30,14 +29,13 @@ export async function POST(req: NextRequest) {
       await db.insert(users).values({
         email,
         name: "Demo",
-        passwordHash: hashPassword("scribble"),
+        passwordHash: "disabled",
       })
     }
 
     return NextResponse.json({
       ok: true,
-      message: "Migrations applied and demo user ensured.",
-      demo: { email, password: "scribble" },
+      message: "Migrations applied and default user ensured.",
     })
   } catch (error) {
     const message = error instanceof Error ? error.message : "Setup failed"

@@ -20,10 +20,9 @@ export default function SettingsPage() {
   const [offlineReady, setOfflineReady] = useState(false)
 
   useEffect(() => {
-    fetch("/api/auth")
+    fetch("/api/settings")
       .then((r) => r.json())
       .then((d) => {
-        if (!d.user) window.location.href = "/login"
         setUser(d.user)
         setTone(d.user?.tone || "calm")
       })
@@ -35,7 +34,6 @@ export default function SettingsPage() {
         .catch(() => setOfflineReady(false))
     }
 
-    // Cache today's plan snapshot for offline
     caches.open("scribble-offline-v1").then(async (cache) => {
       try {
         await cache.addAll(["/today", "/api/plan", "/api/reminders"])
@@ -46,7 +44,6 @@ export default function SettingsPage() {
   }, [])
 
   async function saveTone() {
-    // Persist via preference + user tone update endpoint-lite using export? Add quick PATCH on auth
     await fetch("/api/settings", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -62,15 +59,10 @@ export default function SettingsPage() {
     window.location.href = "/api/export"
   }
 
-  async function logout() {
-    await fetch("/api/auth", { method: "DELETE" })
-    window.location.href = "/login"
-  }
-
   async function deleteAll() {
     if (!confirm("Delete all your Scribble data? This cannot be undone.")) return
     await fetch("/api/export", { method: "DELETE" })
-    window.location.href = "/login"
+    window.location.href = "/today"
   }
 
   return (
@@ -78,7 +70,7 @@ export default function SettingsPage() {
       <div>
         <h1 className="font-[family-name:var(--font-display)] text-3xl">Settings</h1>
         <p className="text-sm text-muted-foreground">
-          Tone, notifications, ownership. Signed in as {user?.email}
+          Tone, notifications, ownership. Using {user?.name || user?.email || "Scribble"}
         </p>
       </div>
 
@@ -120,11 +112,8 @@ export default function SettingsPage() {
         <Button variant="outline" onClick={exportData}>
           Export my data
         </Button>
-        <Button variant="secondary" onClick={logout}>
-          Sign out
-        </Button>
         <Button variant="destructive" onClick={deleteAll}>
-          Delete account & data
+          Delete all data
         </Button>
       </section>
     </div>
