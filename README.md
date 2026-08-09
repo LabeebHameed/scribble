@@ -34,7 +34,7 @@ Demo login: `demo@scribble.app` / `scribble`
 
 **→ See [VERCEL.md](VERCEL.md) for exact dashboard settings.**
 
-**Root Directory must be `apps/web`** (not the repo root). Leaving it blank is the most common cause of deploy failure.
+**Root Directory:** use `apps/web` (recommended) **or** leave blank (repo root) — both are supported. You must clear any **Output Directory** override (`public` breaks deploy).
 
 1. Set **Root Directory** to `apps/web` and enable **Include source files outside of the Root Directory**.
 2. Clear any **Output Directory** override (must be blank, not `public`).
