@@ -116,8 +116,11 @@ export default function CapturePage() {
       const data = await res.json()
       if (data.message) setMessages((m) => [...m, data.message])
       if (data.toolResults?.length) {
-        const names = data.toolResults.map((t: { name: string }) => t.name).join(", ")
-        toast.success(`Done: ${names}`)
+        toast.success(
+          data.toolResults
+            .map((t: { name: string }) => t.name)
+            .join(", ")
+        )
       }
     } finally {
       setBusy(false)

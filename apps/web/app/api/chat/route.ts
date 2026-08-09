@@ -17,7 +17,9 @@ import {
   tasks,
 } from "@workspace/db"
 import { hybridSearch, ingestText } from "@workspace/mind"
+import { parseIntents } from "@workspace/ai"
 import { badRequest, json, withAuth } from "@/lib/api"
+import { executeIntents } from "@/lib/life-actions"
 
 async function runTool(
   userId: string,
@@ -292,36 +294,14 @@ export async function POST(req: NextRequest) {
         : null)
 
     if (result.offline) {
-      // Offline heuristic assistant
-      const lower = body.message.toLowerCase()
-      if (lower.includes("plate") || lower.includes("today")) {
-        const open = await db
-          .select()
-          .from(tasks)
-          .where(eq(tasks.userId, user.id))
-        const active = open.filter(
-          (t) => t.status === "open" || t.status === "in_progress"
-        )
-        reply = `Here's what's on your plate: ${
-          active.map((t) => t.title).join("; ") || "nothing open yet"
-        }.`
-      } else if (lower.includes("energy")) {
-        reply =
-          "Tell me if you're low, medium, or high energy and I'll log it — or say “low energy after poor sleep”."
-      } else if (memoryHits[0]) {
-        reply = `I found this in memory: “${memoryHits[0].content.slice(0, 200)}”`
+      const intents = parseIntents(body.message)
+      const actionResults = await executeIntents(db, user.id, intents)
+      if (actionResults.length) {
+        toolResults.push(...actionResults.map((r) => ({ name: r.kind, result: r.data })))
+        reply = actionResults.map((r) => r.summary).join(" ")
       } else {
         reply =
-          "I'm here. Capture anything, ask what's on your plate, or ask me to plan today. (LLM offline — heuristic mode.)"
-      }
-
-      if (/create task|add task|remind me to/i.test(body.message)) {
-        const title = body.message
-          .replace(/^(create task|add task|remind me to)\s*/i, "")
-          .slice(0, 80)
-        const t = await runTool(user.id, "create_task", { title })
-        toolResults.push({ name: "create_task", result: t })
-        reply = `Created task: ${title}`
+          "Tell me a task, meeting time, or say “plan my day”. I'll turn it into actions — not just memory."
       }
     }
 

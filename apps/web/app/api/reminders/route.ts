@@ -7,10 +7,12 @@ import {
   tasks,
 } from "@workspace/db"
 import { badRequest, json, withAuth } from "@/lib/api"
+import { activateDueReminders } from "@/lib/materialize"
 
 export async function GET() {
   return withAuth(async (user) => {
     const db = getDb()
+    await activateDueReminders(db, user.id)
     const instances = await db
       .select({
         id: reminderInstances.id,
@@ -74,26 +76,28 @@ export async function POST(req: NextRequest) {
     if (!chain) return badRequest("Could not create chain")
 
     const now = Date.now()
+    const fireInMinutes = Number(body.fireInMinutes)
+    const fireAt = Number.isFinite(fireInMinutes) && fireInMinutes > 0
+      ? new Date(now + fireInMinutes * 60 * 1000)
+      : body.fireAt
+        ? new Date(String(body.fireAt))
+        : new Date(now + 30 * 60 * 1000)
+
     type Stage = "day_before" | "prep" | "action" | "final" | "nag"
     const stages: Array<{ stage: Stage; fireAt: Date; message: string }> = [
       {
-        stage: "day_before",
-        fireAt: new Date(now + 1 * 60 * 60 * 1000),
-        message: `Tomorrow focus: ${task.title}`,
-      },
-      {
         stage: "prep",
-        fireAt: new Date(now + 2 * 60 * 60 * 1000),
-        message: `Prep for: ${body.actionLanguage}`,
+        fireAt: new Date(Math.max(now, fireAt.getTime() - 5 * 60 * 1000)),
+        message: `Coming up: ${body.actionLanguage}`,
       },
       {
         stage: "action",
-        fireAt: new Date(now + 3 * 60 * 60 * 1000),
+        fireAt,
         message: body.actionLanguage,
       },
       {
         stage: "final",
-        fireAt: new Date(now + 5 * 60 * 60 * 1000),
+        fireAt: new Date(fireAt.getTime() + 30 * 60 * 1000),
         message: `Still open — ${body.actionLanguage}`,
       },
     ]
@@ -114,7 +118,8 @@ export async function POST(req: NextRequest) {
           chainId: chain.id,
           userId: user.id,
           stage: s.stage,
-          status: s.stage === "action" ? "sent" : "scheduled",
+          status:
+            s.stage === "action" && s.fireAt <= new Date() ? "sent" : "scheduled",
           fireAt: s.fireAt,
           message: s.message,
         })

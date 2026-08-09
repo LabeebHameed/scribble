@@ -1,3 +1,5 @@
 export * from "./client"
 export * from "./extract"
+export * from "./intent"
+export * from "./intent-extract"
 export * from "./tools"

@@ -2,9 +2,10 @@ import { NextRequest } from "next/server"
 import { and, desc, eq } from "drizzle-orm"
 import { extractLifeObjects } from "@workspace/ai"
 import type { Db } from "@workspace/db"
-import { getDb, captures, energyNotes, people, tasks } from "@workspace/db"
+import { getDb, captures, energyNotes, events, people, scheduledBlocks, tasks } from "@workspace/db"
 import { ingestText } from "@workspace/mind"
 import { badRequest, json, withAuth } from "@/lib/api"
+import { createReminderForTask } from "@/lib/materialize"
 
 type Candidate = {
   type: string
@@ -31,11 +32,59 @@ async function materializeCandidates(
           priority: (c.data?.priority as "medium") || "medium",
           energyCost: (c.data?.energyCost as "medium") || null,
           estimatedDuration: (c.data?.estimatedDuration as number) || null,
-          deadline: c.data?.deadline ? new Date(String(c.data.deadline)) : null,
+          deadline: c.data?.deadline
+            ? new Date(String(c.data.deadline))
+            : null,
           sourceCaptureId: captureId,
         })
         .returning()
-      created.push({ type: "task", ...t })
+      if (t) {
+        created.push({ type: "task", ...t })
+        if (c.data?.reminderAt && c.data?.actionLanguage) {
+          await createReminderForTask(
+            db,
+            userId,
+            t.id,
+            c.title || "Reminder",
+            String(c.data.actionLanguage),
+            new Date(String(c.data.reminderAt))
+          )
+          created.push({
+            type: "reminder",
+            title: c.data.actionLanguage,
+            fireAt: c.data.reminderAt,
+          })
+        }
+      }
+    } else if (c.type === "event") {
+      const start = c.data?.start ? new Date(String(c.data.start)) : new Date()
+      const end = c.data?.end
+        ? new Date(String(c.data.end))
+        : new Date(start.getTime() + 60 * 60 * 1000)
+      const [ev] = await db
+        .insert(events)
+        .values({
+          userId,
+          title: c.title || "Event",
+          start,
+          end,
+          isFixed: true,
+          notes: (c.data?.notes as string) || null,
+        })
+        .returning()
+      if (ev) {
+        await db.insert(scheduledBlocks).values({
+          userId,
+          kind: "event",
+          title: ev.title,
+          start: ev.start,
+          end: ev.end,
+          eventId: ev.id,
+          isProposal: false,
+          accepted: true,
+        })
+        created.push({ type: "event", ...ev })
+      }
     } else if (c.type === "energy") {
       const [e] = await db
         .insert(energyNotes)
