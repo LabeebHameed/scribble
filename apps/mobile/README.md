@@ -1,29 +1,28 @@
 # Scribble mobile (Expo) — voice-first client
 
-One screen: glance (Now / Needs attention / Next up) + hold-to-speak.
-
-This app is **standalone** (not part of the root pnpm workspace). Use **npm** inside `apps/mobile`.
-
-## Voice loop
-
-1. Hold the button → records audio (`expo-av`)
-2. `POST {apiUrl}/api/converse` with the audio file
-3. Server: Groq Whisper STT → intents/clarify → Groq PlayAI TTS
-4. App plays the reply and updates the glance
-
-`GROQ_API_KEY` stays on the **server** (Vercel), never in this app.
+One screen: glance + hold-to-speak. Standalone app (not in the root pnpm workspace) — use **npm** here.
 
 ## Setup
 
-1. Set `apiUrl` in [`app.json`](app.json) to your Vercel URL, e.g. `https://scribble-xxx.vercel.app`
-2. Install and start:
+1. Set `extra.apiUrl` in [`app.json`](app.json) to your Vercel URL.
+2. Ensure `GROQ_API_KEY` is set on that Vercel project.
+3. Install and start:
 
 ```bash
 cd apps/mobile
+rm -rf node_modules package-lock.json
 npm install
 npx expo start
 ```
 
-3. Scan the QR code with **Expo Go** (same Wi‑Fi if using a LAN URL), or press `i` / `a` for a simulator.
+4. Scan with Expo Go, or press `i` / `a` for a simulator.
 
-Do **not** run `npm install` from the repo root for this app, and do not use `workspace:*` packages here — that only works with pnpm monorepo installs.
+## Verify (CI / agent)
+
+```bash
+cd apps/mobile
+npm install
+npx expo export --platform web --output-dir /tmp/scribble-expo-export
+```
+
+That confirms Metro can resolve the project (including `expo-asset` and router deps).
