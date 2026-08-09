@@ -1,5 +1,5 @@
 const CACHE = "scribble-offline-v1"
-const PRECACHE = ["/today", "/login"]
+const PRECACHE = ["/today"]
 
 self.addEventListener("install", (event) => {
   event.waitUntil(

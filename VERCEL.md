@@ -20,7 +20,7 @@ In **Settings → Environment Variables**:
 | Variable | Required |
 |----------|----------|
 | `DATABASE_URL` or `POSTGRES_URL` | Yes (from Neon) |
-| `AUTH_SECRET` | Yes |
+| `SETUP_SECRET` or `AUTH_SECRET` | Yes (for one-time `/api/setup`) |
 | `NEXT_PUBLIC_APP_URL` | Yes (your Vercel URL) |
 
 ## After deploy succeeds
@@ -29,10 +29,8 @@ Initialize the database (once):
 
 ```bash
 curl -X POST https://YOUR-APP.vercel.app/api/setup \
-  -H "x-setup-secret: YOUR_AUTH_SECRET"
+  -H "x-setup-secret: YOUR_SETUP_SECRET"
 ```
-
-Login: `demo@scribble.app` / `scribble`
 
 ## How to check if deploy worked
 

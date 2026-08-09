@@ -1,5 +1,4 @@
 import "dotenv/config"
-import { randomBytes, scryptSync } from "node:crypto"
 import { eq } from "drizzle-orm"
 import { getDb, getSql } from "./client"
 import {
@@ -15,12 +14,6 @@ import {
   users,
 } from "./schema"
 
-function hashPassword(password: string) {
-  const salt = randomBytes(16).toString("hex")
-  const hash = scryptSync(password, salt, 64).toString("hex")
-  return `${salt}:${hash}`
-}
-
 async function main() {
   const db = getDb()
   const email = "demo@scribble.app"
@@ -33,12 +26,12 @@ async function main() {
       .values({
         email,
         name: "Demo",
-        passwordHash: hashPassword("scribble"),
+        passwordHash: "disabled",
         tone: "calm",
       })
       .returning()
     userId = user.id
-    console.log("Created demo user demo@scribble.app / scribble")
+    console.log("Created default user demo@scribble.app")
   } else {
     console.log("Demo user already exists")
   }

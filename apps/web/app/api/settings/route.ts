@@ -2,6 +2,10 @@ import { eq } from "drizzle-orm"
 import { getDb, users } from "@workspace/db"
 import { badRequest, json, withAuth } from "@/lib/api"
 
+export async function GET() {
+  return withAuth(async (user) => json({ user }))
+}
+
 export async function POST(req: Request) {
   return withAuth(async (user) => {
     const body = await req.json()

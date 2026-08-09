@@ -28,10 +28,7 @@ export default function CapturePage() {
   useEffect(() => {
     fetch("/api/chat")
       .then((r) => r.json())
-      .then((d) => {
-        if (d.error) window.location.href = "/login"
-        setMessages(d.messages || [])
-      })
+      .then((d) => setMessages(d.messages || []))
   }, [])
 
   async function capture() {
