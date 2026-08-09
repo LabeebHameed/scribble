@@ -4,7 +4,6 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import {
   CalendarDaysIcon,
-  CheckSquareIcon,
   HomeIcon,
   MessageSquareIcon,
   SearchIcon,
@@ -15,7 +14,6 @@ import { cn } from "@workspace/ui/lib/utils"
 const items = [
   { href: "/today", label: "Today", icon: HomeIcon },
   { href: "/capture", label: "Capture", icon: MessageSquareIcon },
-  { href: "/tasks", label: "Tasks", icon: CheckSquareIcon },
   { href: "/schedule", label: "Schedule", icon: CalendarDaysIcon },
   { href: "/memory", label: "Memory", icon: SearchIcon },
   { href: "/settings", label: "Settings", icon: SettingsIcon },
