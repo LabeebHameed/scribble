@@ -1,6 +1,7 @@
 {
   "$schema": "https://turbo.build/schema.json",
   "ui": "tui",
+  "globalPassThroughEnv": ["SCRIBBLE_VERCEL_ROOT"],
   "tasks": {
     "build": {
       "dependsOn": ["^build"],
