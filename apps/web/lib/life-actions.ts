@@ -203,6 +203,12 @@ export async function executeIntents(
             : "Nothing open yet — capture something",
         data: active,
       })
+    } else if (intent.type === "whats_next") {
+      results.push({
+        kind: "whats_next",
+        summary: "whats_next",
+        data: null,
+      })
     } else if (intent.type === "memory_query") {
       const hits = await hybridSearch(db, {
         userId,

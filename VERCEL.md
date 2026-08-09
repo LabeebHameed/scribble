@@ -22,6 +22,9 @@ In **Settings → Environment Variables**:
 | `DATABASE_URL` or `POSTGRES_URL` | Yes (from Neon) |
 | `SETUP_SECRET` or `AUTH_SECRET` | Yes (for one-time `/api/setup`) |
 | `NEXT_PUBLIC_APP_URL` | Yes (your Vercel URL) |
+| `GROQ_API_KEY` | Yes for voice (Whisper STT + PlayAI TTS) |
+
+Optional: `OPENAI_API_KEY` / `OPENAI_BASE_URL` / `OPENAI_MODEL` for richer chat; intents work offline without them.
 
 ## After deploy succeeds
 

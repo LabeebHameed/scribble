@@ -1,21 +1,33 @@
-# Scribble mobile (Expo)
+# Scribble mobile (Expo) — voice-first client
 
-Scaffold for the later Expo client. It shares domain contracts via `@workspace/core`.
+One screen: glance (Now / Needs attention / Next up) + hold-to-speak.
 
-## Why it's outside the default workspace install
+## Voice loop
 
-The Next.js web app uses React 19. Expo SDK 52 pins React 18. To avoid monorepo peer conflicts, `apps/mobile` is **not** included in the root `pnpm-workspace.yaml` yet.
+1. Hold the button → records audio on device (`expo-av`)
+2. `POST {apiUrl}/api/converse` with the audio file
+3. Server: Groq Whisper STT → intents/clarify → Groq PlayAI TTS
+4. App plays the returned audio and updates the glance
 
-## When upgrading
+`GROQ_API_KEY` stays on the **server** (Vercel / web `.env`), never in the app.
 
-1. Align React versions (or isolate with a separate lockfile).
-2. Add `apps/mobile` back to `pnpm-workspace.yaml`.
-3. Point `expo.extra.apiUrl` at the deployed Scribble API.
-4. Wire screens to `/api/captures`, `/api/plan`, `/api/chat`, etc.
-5. Add native push (replacing the web service-worker placeholder).
+## Setup
+
+Mobile is outside the root pnpm workspace (React 18 vs web React 19).
 
 ```bash
+# Terminal 1 — API
+cd /workspace
+pnpm --filter web dev
+
+# Terminal 2 — Expo
 cd apps/mobile
-npx create-expo-app@latest . --template blank-typescript # if regenerating
+npm install   # or pnpm install if using a local lockfile
 npx expo start
 ```
+
+Set `expo.extra.apiUrl` in [`app.json`](app.json) to your machine/LAN URL or Vercel deploy, e.g. `http://192.168.1.10:3000`.
+
+## Permissions
+
+iOS/Android mic permission is requested on first hold. Add usage strings in `app.json` plugins when building a store binary.

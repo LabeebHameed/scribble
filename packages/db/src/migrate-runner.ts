@@ -233,6 +233,17 @@ CREATE TABLE IF NOT EXISTS chat_messages (
   created_at timestamptz NOT NULL DEFAULT now()
 );
 
+CREATE TABLE IF NOT EXISTS voice_sessions (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  session_key text NOT NULL,
+  pending jsonb,
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS voice_sessions_user_key_idx ON voice_sessions(user_id, session_key);
+
 CREATE INDEX IF NOT EXISTS tasks_user_idx ON tasks(user_id);
 CREATE INDEX IF NOT EXISTS tasks_status_idx ON tasks(status);
 CREATE INDEX IF NOT EXISTS memory_chunks_user_idx ON memory_chunks(user_id);
