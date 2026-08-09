@@ -1,6 +1,7 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": "nextjs",
+  "outputDirectory": null,
   "installCommand": "pnpm install",
   "buildCommand": "VERCEL_MONOREPO_ROOT=1 pnpm turbo build --filter=web"
 }
