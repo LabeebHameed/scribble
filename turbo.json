@@ -19,6 +19,15 @@
       ],
       "outputs": [".next/**", "!.next/cache/**", ".vercel/output/**"]
     },
+    "web#build": {
+      "outputs": [
+        ".next/**",
+        "!.next/cache/**",
+        "../../.next/**",
+        "!.next/../../.next/cache/**",
+        ".vercel/output/**"
+      ]
+    },
     "lint": {
       "dependsOn": ["^lint"]
     },
