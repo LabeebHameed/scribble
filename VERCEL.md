@@ -1,50 +1,65 @@
-# Vercel deployment (required settings)
+# Vercel deployment — read this first
 
-Scribble is a **pnpm + Turborepo** monorepo. The Next.js app lives in `apps/web`, not the repo root.
+## What should Root Directory be?
 
-## Root Directory (read this)
+| Setting | When to use |
+|---------|-------------|
+| **`apps/web`** | **Recommended** — use this if you can change it |
+| **Blank (repo root)** | Works too — leave as-is if you already have it blank |
 
-| Your situation | What to set |
-|----------------|-------------|
-| **Recommended** | Root Directory = `apps/web` |
-| **Currently using repo root** | Leave blank — `vercel.json` at repo root handles it |
+**Both are supported.** Pick one and follow the matching row below.
 
-**Yes, leaving Root Directory blank (repo root) is a common cause of failures** if `vercel.json` / framework settings are wrong. This repo now supports **both** layouts.
+---
 
-### If using repo root (blank Root Directory)
-
-1. Clear **Output Directory** override (must be blank, not `public`)
-2. **Framework Preset** → Next.js
-3. Neon + `AUTH_SECRET` + `NEXT_PUBLIC_APP_URL`
-
-### If using `apps/web` (recommended)
-
-1. Root Directory → `apps/web`
-2. Enable **Include source files outside of the Root Directory**
-3. Clear **Output Directory** override
-4. Same env vars as above
-
-## Build & Deployment
+## Option A — Root Directory = `apps/web` (recommended)
 
 Open: https://vercel.com/labeebs-projects-649a4343/scribble/settings
 
 | Setting | Value |
 |---------|--------|
-| **Framework Preset** | Next.js |
-| **Build Command** | *(leave empty — uses `apps/web/vercel.json`)* |
-| **Output Directory** | *(leave empty — must NOT be `public`)* |
-| **Install Command** | *(leave empty)* |
+| Root Directory | `apps/web` |
+| Include source files outside Root Directory | **On** |
+| Framework Preset | **Next.js** |
+| Build Command | *(empty — override OFF)* |
+| Output Directory | *(empty — override OFF)* |
+| Install Command | *(empty — override OFF)* |
 
-If any setting has an **Override** toggle turned on with a custom value, turn it **off** unless noted above.
+Uses `apps/web/vercel.json` automatically.
+
+---
+
+## Option B — Root Directory blank (repo root)
+
+Same settings page:
+
+| Setting | Value |
+|---------|--------|
+| Root Directory | *(blank)* |
+| Framework Preset | **Next.js** |
+| Build Command | *(empty — override OFF)* |
+| **Output Directory** | **Must be empty — turn OFF the override toggle** |
+| Install Command | *(empty — override OFF)* |
+
+Uses root `vercel.json` automatically.
+
+### Critical: turn OFF Output Directory override
+
+If you see **Output Directory = `public`**, that is the bug. Click **Edit**, turn **Override** off, save, redeploy.
+
+Error you may see if this is wrong:
+```
+No Output Directory named "public" found
+```
+
+---
 
 ## Environment variables
 
 | Variable | Required |
 |----------|----------|
-| `DATABASE_URL` or `POSTGRES_URL` | ✅ (from Neon integration) |
-| `AUTH_SECRET` | ✅ |
-| `NEXT_PUBLIC_APP_URL` | ✅ (your Vercel URL) |
-| `OPENAI_API_KEY` | optional |
+| `DATABASE_URL` or `POSTGRES_URL` | Yes (Neon) |
+| `AUTH_SECRET` | Yes |
+| `NEXT_PUBLIC_APP_URL` | Yes |
 
 ## After first successful deploy
 
@@ -53,8 +68,4 @@ curl -X POST https://YOUR-APP.vercel.app/api/setup \
   -H "x-setup-secret: YOUR_AUTH_SECRET"
 ```
 
-Then open the app and log in: `demo@scribble.app` / `scribble`
-
-## Redeploy
-
-After changing Root Directory to `apps/web`, click **Redeploy** on the latest deployment (or push a new commit to `main`).
+Login: `demo@scribble.app` / `scribble`
