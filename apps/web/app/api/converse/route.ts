@@ -109,11 +109,17 @@ export async function POST(req: NextRequest) {
         }
         if (!isGroqConfigured()) {
           return json(
-            { error: "GROQ_API_KEY not configured — pass transcript for text mode" },
+            { error: "GROQ_API_KEY not configured on server — voice upload needs it" },
             { status: 503 }
           )
         }
-        const name = file instanceof File && file.name ? file.name : "audio.wav"
+        if (file.size === 0) {
+          return badRequest("Empty audio upload — record a bit longer and try again")
+        }
+        const name =
+          file instanceof File && file.name
+            ? file.name
+            : "speech.m4a"
         transcript = await transcribeAudio(file, name)
       }
     } else {
