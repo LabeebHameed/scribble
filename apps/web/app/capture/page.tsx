@@ -16,6 +16,15 @@ type Candidate = {
 
 type Msg = { id: string; role: string; content: string }
 
+function describeCreated(created: Array<{ type?: string; title?: string }>) {
+  if (!created.length) return "Saved to memory"
+  const labels = created.map((c) => {
+    if (c.type === "task") return `task: ${c.title}`
+    return c.type || "item"
+  })
+  return `Saved ${labels.join(", ")}`
+}
+
 export default function CapturePage() {
   const [raw, setRaw] = useState("")
   const [candidates, setCandidates] = useState<Candidate[]>([])
@@ -31,16 +40,24 @@ export default function CapturePage() {
       .then((d) => setMessages(d.messages || []))
   }, [])
 
-  async function capture() {
+  async function capture(autoConfirm: boolean) {
     if (!raw.trim()) return
     setBusy(true)
     try {
       const res = await fetch("/api/captures", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ rawText: raw }),
+        body: JSON.stringify({ rawText: raw, autoConfirm }),
       })
       const data = await res.json()
+      if (autoConfirm) {
+        toast.success(describeCreated(data.created || []))
+        setRaw("")
+        setCandidates([])
+        setCaptureId(null)
+        setSummary("")
+        return
+      }
       setCaptureId(data.capture.id)
       setCandidates(data.extracted?.candidates || [])
       setSummary(data.extracted?.summary || "")
@@ -62,10 +79,11 @@ export default function CapturePage() {
       }),
     })
     const data = await res.json()
-    toast.success(`Saved ${data.created?.length || 0} object(s)`)
+    toast.success(describeCreated(data.created || []))
     setRaw("")
     setCandidates([])
     setCaptureId(null)
+    setSummary("")
   }
 
   async function dismiss() {
@@ -77,6 +95,7 @@ export default function CapturePage() {
     })
     setCandidates([])
     setCaptureId(null)
+    setSummary("")
   }
 
   async function sendChat() {
@@ -96,6 +115,10 @@ export default function CapturePage() {
       })
       const data = await res.json()
       if (data.message) setMessages((m) => [...m, data.message])
+      if (data.toolResults?.length) {
+        const names = data.toolResults.map((t: { name: string }) => t.name).join(", ")
+        toast.success(`Done: ${names}`)
+      }
     } finally {
       setBusy(false)
     }
@@ -104,27 +127,33 @@ export default function CapturePage() {
   return (
     <div className="flex flex-col gap-4">
       <div>
-        <h1 className="font-[family-name:var(--font-display)] text-3xl">Capture / Chat</h1>
+        <h1 className="font-[family-name:var(--font-display)] text-3xl">Capture</h1>
         <p className="text-sm text-muted-foreground">
-          Dump freely. Confirm structured objects. Ask or act.
+          Tasks, reminders, energy notes, people — say it once here or in chat.
+          No separate task list to maintain.
         </p>
       </div>
 
       <Tabs defaultValue="capture">
         <TabsList>
-          <TabsTrigger value="capture">Capture</TabsTrigger>
+          <TabsTrigger value="capture">Dump</TabsTrigger>
           <TabsTrigger value="chat">Chat</TabsTrigger>
         </TabsList>
         <TabsContent value="capture" className="flex flex-col gap-3">
           <Textarea
             rows={5}
-            placeholder="Call dentist Tuesday, low energy today, Mom birthday gift…"
+            placeholder="Call dentist Tuesday, buy Mom a birthday gift, low energy today…"
             value={raw}
             onChange={(e) => setRaw(e.target.value)}
           />
-          <Button disabled={busy} onClick={capture}>
-            Extract
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button disabled={busy} onClick={() => capture(true)}>
+              Capture & save
+            </Button>
+            <Button disabled={busy} variant="outline" onClick={() => capture(false)}>
+              Review first
+            </Button>
+          </div>
           {summary && <p className="text-sm text-muted-foreground">{summary}</p>}
           {candidates.map((c, i) => (
             <div
@@ -164,7 +193,7 @@ export default function CapturePage() {
           <div className="flex max-h-[50dvh] flex-col gap-2 overflow-y-auto rounded-xl border border-border/60 bg-background/70 p-3">
             {messages.length === 0 && (
               <p className="text-sm text-muted-foreground">
-                Ask “what’s on my plate?” or “what did I say about the dentist?”
+                “Remind me to call the dentist”, “what’s on my plate?”, “plan today”…
               </p>
             )}
             {messages.map((m) => (
@@ -184,7 +213,13 @@ export default function CapturePage() {
             rows={2}
             value={chatInput}
             onChange={(e) => setChatInput(e.target.value)}
-            placeholder="Talk to Scribble…"
+            placeholder="Talk to Scribble — tasks, plans, memory…"
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault()
+                sendChat()
+              }
+            }}
           />
           <Button disabled={busy} onClick={sendChat}>
             Send

@@ -53,7 +53,7 @@ No sign-in required — the app opens directly to Today.
 
 ## Product surfaces
 
-Today · Capture/Chat · Tasks · Schedule · Memory · Settings
+Today · Capture · Schedule · Memory · Settings
 
 ## MIND scope
 

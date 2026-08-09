@@ -96,11 +96,18 @@ export default function TodayPage() {
     const res = await fetch("/api/captures", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ rawText: quick }),
+      body: JSON.stringify({ rawText: quick, autoConfirm: true }),
     })
     if (res.ok) {
-      toast.success("Captured — review in Capture")
+      const data = await res.json()
+      const count = data.created?.length || 0
+      toast.success(
+        count
+          ? `Captured ${count} item${count === 1 ? "" : "s"} — check Today or Schedule`
+          : "Captured — saved to memory"
+      )
       setQuick("")
+      await load()
     }
   }
 
@@ -218,10 +225,16 @@ export default function TodayPage() {
       <section className="flex flex-col gap-2">
         <h2 className="text-sm font-semibold">Quick capture</h2>
         <Textarea
-          placeholder="Dump anything…"
+          placeholder="Call dentist, buy gift, low energy…"
           value={quick}
           onChange={(e) => setQuick(e.target.value)}
           rows={2}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && !e.shiftKey) {
+              e.preventDefault()
+              quickCapture()
+            }
+          }}
         />
         <Button onClick={quickCapture}>Capture</Button>
       </section>

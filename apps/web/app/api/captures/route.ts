@@ -1,9 +1,67 @@
 import { NextRequest } from "next/server"
 import { and, desc, eq } from "drizzle-orm"
 import { extractLifeObjects } from "@workspace/ai"
+import type { Db } from "@workspace/db"
 import { getDb, captures, energyNotes, people, tasks } from "@workspace/db"
 import { ingestText } from "@workspace/mind"
 import { badRequest, json, withAuth } from "@/lib/api"
+
+type Candidate = {
+  type: string
+  title?: string
+  data?: Record<string, unknown>
+}
+
+async function materializeCandidates(
+  db: Db,
+  userId: string,
+  captureId: string,
+  candidates: Candidate[]
+) {
+  const created: Record<string, unknown>[] = []
+
+  for (const c of candidates) {
+    if (c.type === "task") {
+      const [t] = await db
+        .insert(tasks)
+        .values({
+          userId,
+          title: c.title || "Untitled task",
+          description: (c.data?.description as string) || null,
+          priority: (c.data?.priority as "medium") || "medium",
+          energyCost: (c.data?.energyCost as "medium") || null,
+          estimatedDuration: (c.data?.estimatedDuration as number) || null,
+          deadline: c.data?.deadline ? new Date(String(c.data.deadline)) : null,
+          sourceCaptureId: captureId,
+        })
+        .returning()
+      created.push({ type: "task", ...t })
+    } else if (c.type === "energy") {
+      const [e] = await db
+        .insert(energyNotes)
+        .values({
+          userId,
+          level: (c.data?.level as "medium") || "medium",
+          notes: (c.data?.notes as string) || c.title || null,
+        })
+        .returning()
+      created.push({ type: "energy", ...e })
+    } else if (c.type === "person") {
+      const [p] = await db
+        .insert(people)
+        .values({
+          userId,
+          name: (c.data?.name as string) || c.title || "Someone",
+          relationship: (c.data?.relationship as string) || null,
+          notes: (c.data?.notes as string) || null,
+        })
+        .returning()
+      created.push({ type: "person", ...p })
+    }
+  }
+
+  return created
+}
 
 export async function GET() {
   return withAuth(async (user) => {
@@ -24,19 +82,20 @@ export async function POST(req: NextRequest) {
     if (!body.rawText?.trim()) return badRequest("rawText required")
     const db = getDb()
     const extracted = await extractLifeObjects(body.rawText)
+    const autoConfirm = body.autoConfirm === true
+
     const inserted = await db
       .insert(captures)
       .values({
         userId: user.id,
         rawText: body.rawText,
-        status: "pending",
+        status: autoConfirm ? "confirmed" : "pending",
         extracted,
       })
       .returning()
     const capture = inserted[0]
     if (!capture) return badRequest("Could not create capture")
 
-    // Index raw capture into thin memory layer immediately
     await ingestText(db, {
       userId: user.id,
       text: body.rawText,
@@ -44,7 +103,17 @@ export async function POST(req: NextRequest) {
       sourceId: capture.id,
     })
 
-    return json({ capture, extracted }, { status: 201 })
+    let created: Record<string, unknown>[] = []
+    if (autoConfirm) {
+      created = await materializeCandidates(
+        db,
+        user.id,
+        capture.id,
+        extracted.candidates ?? []
+      )
+    }
+
+    return json({ capture, extracted, created }, { status: 201 })
   })
 }
 
@@ -72,55 +141,14 @@ export async function PATCH(req: NextRequest) {
 
     if (body.status === "confirmed") {
       const extracted = (body.extracted ?? capture.extracted) as {
-        candidates?: Array<{
-          type: string
-          title?: string
-          data?: Record<string, unknown>
-        }>
+        candidates?: Candidate[]
       }
-      const created: Record<string, unknown>[] = []
-
-      for (const c of extracted?.candidates ?? []) {
-        if (c.type === "task") {
-          const [t] = await db
-            .insert(tasks)
-            .values({
-              userId: user.id,
-              title: c.title || "Untitled task",
-              description: (c.data?.description as string) || null,
-              priority: (c.data?.priority as "medium") || "medium",
-              energyCost: (c.data?.energyCost as "medium") || null,
-              estimatedDuration: (c.data?.estimatedDuration as number) || null,
-              deadline: c.data?.deadline
-                ? new Date(String(c.data.deadline))
-                : null,
-              sourceCaptureId: capture.id,
-            })
-            .returning()
-          created.push({ type: "task", ...t })
-        } else if (c.type === "energy") {
-          const [e] = await db
-            .insert(energyNotes)
-            .values({
-              userId: user.id,
-              level: (c.data?.level as "medium") || "medium",
-              notes: (c.data?.notes as string) || c.title || null,
-            })
-            .returning()
-          created.push({ type: "energy", ...e })
-        } else if (c.type === "person") {
-          const [p] = await db
-            .insert(people)
-            .values({
-              userId: user.id,
-              name: (c.data?.name as string) || c.title || "Someone",
-              relationship: (c.data?.relationship as string) || null,
-              notes: (c.data?.notes as string) || null,
-            })
-            .returning()
-          created.push({ type: "person", ...p })
-        }
-      }
+      const created = await materializeCandidates(
+        db,
+        user.id,
+        capture.id,
+        extracted?.candidates ?? []
+      )
 
       const [updated] = await db
         .update(captures)
