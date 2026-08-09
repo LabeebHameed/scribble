@@ -32,27 +32,15 @@ Demo login: `demo@scribble.app` / `scribble`
 
 ## Deploy on Vercel + Neon
 
-1. Connect [Neon](https://neon.tech) to your Vercel project (Storage → Neon). Vercel will inject `DATABASE_URL` and/or `POSTGRES_URL`.
-2. In **[Project Settings → Build & Deployment](https://vercel.com/labeebs-projects-649a4343/scribble/settings)**:
-   - **Root Directory:** `apps/web` (enable “Include source files outside of the Root Directory”)
-   - **Framework Preset:** Next.js
-   - **Output Directory:** leave **blank** (turn off any override — must not be `public`)
-   - **Build Command:** leave blank (uses `vercel-build` / `vercel.json`)
-3. Add environment variables:
-   - `AUTH_SECRET` — long random string (also used for one-time setup)
-   - `NEXT_PUBLIC_APP_URL` — your Vercel URL
-   - Optional: `OPENAI_API_KEY`, `OPENAI_BASE_URL`, `OPENAI_MODEL`
-4. After the first successful deploy, initialize the database (no local CLI needed):
-   ```bash
-   curl -X POST https://YOUR-APP.vercel.app/api/setup \
-     -H "x-setup-secret: YOUR_AUTH_SECRET"
-   ```
-   This runs migrations + creates the demo user (`demo@scribble.app` / `scribble`).
-5. Check `GET /api/health` → `{ "ok": true, "db": "connected" }`.
+**→ See [VERCEL.md](VERCEL.md) for exact dashboard settings.**
 
-If deploy fails with “No Output Directory named public”, clear the **Output Directory** override in Vercel settings and redeploy. Connecting Neon does not fix that — it is a project framework setting issue.
+**Root Directory must be `apps/web`** (not the repo root). Leaving it blank is the most common cause of deploy failure.
 
-Root `app/` and `public/` symlinks support repo-root deploys as a fallback when Root Directory is left blank.
+1. Set **Root Directory** to `apps/web` and enable **Include source files outside of the Root Directory**.
+2. Clear any **Output Directory** override (must be blank, not `public`).
+3. Connect Neon for `DATABASE_URL` / `POSTGRES_URL`.
+4. Add `AUTH_SECRET` and `NEXT_PUBLIC_APP_URL`.
+5. After deploy succeeds, run `POST /api/setup` with header `x-setup-secret: YOUR_AUTH_SECRET`.
 
 ## Environment
 
