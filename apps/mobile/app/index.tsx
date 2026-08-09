@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 import {
   ActivityIndicator,
+  Platform,
   Pressable,
   StyleSheet,
   Text,
@@ -28,10 +29,10 @@ type ConverseResponse = {
 }
 
 function apiBase() {
-  return (
+  const url =
     (Constants.expoConfig?.extra as { apiUrl?: string } | undefined)?.apiUrl ||
     "http://localhost:3000"
-  )
+  return url.replace(/\/$/, "")
 }
 
 function formatTime(iso: string) {
@@ -45,6 +46,13 @@ function formatTime(iso: string) {
   }
 }
 
+/** React Native FormData expects { uri, name, type }, not a Blob. */
+function appendAudio(form: FormData, uri: string) {
+  const name = Platform.OS === "ios" ? "speech.m4a" : "speech.m4a"
+  const type = "audio/m4a"
+  form.append("audio", { uri, name, type } as unknown as Blob)
+}
+
 export default function HomeScreen() {
   const [glance, setGlance] = useState<Glance | null>(null)
   const [recording, setRecording] = useState(false)
@@ -53,27 +61,41 @@ export default function HomeScreen() {
   const [reply, setReply] = useState("")
   const [needsReply, setNeedsReply] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [apiOk, setApiOk] = useState<boolean | null>(null)
   const sessionId = useRef(`expo-${Date.now()}`)
   const recorder = useRef<Audio.Recording | null>(null)
   const soundRef = useRef<Audio.Sound | null>(null)
+  const startedAt = useRef(0)
+  const starting = useRef(false)
 
   const refreshGlance = useCallback(async () => {
     try {
-      const res = await fetch(`${apiBase()}/api/converse`)
-      const data = (await res.json()) as { glance?: Glance }
+      const res = await fetch(`${apiBase()}/api/health`)
+      if (!res.ok) throw new Error(`health ${res.status}`)
+      setApiOk(true)
+      const g = await fetch(`${apiBase()}/api/converse`)
+      const data = (await g.json()) as { glance?: Glance; error?: string }
       if (data.glance) setGlance(data.glance)
-    } catch {
-      /* offline / API down */
+    } catch (e) {
+      setApiOk(false)
+      setError(
+        `Cannot reach API at ${apiBase()}. ${e instanceof Error ? e.message : ""}`.trim()
+      )
     }
   }, [])
 
   useEffect(() => {
     refreshGlance()
-    Audio.requestPermissionsAsync().catch(() => {})
-    Audio.setAudioModeAsync({
-      allowsRecordingIOS: true,
-      playsInSilentModeIOS: true,
-    }).catch(() => {})
+    ;(async () => {
+      await Audio.requestPermissionsAsync()
+      await Audio.setAudioModeAsync({
+        allowsRecordingIOS: true,
+        playsInSilentModeIOS: true,
+        staysActiveInBackground: false,
+        shouldDuckAndroid: true,
+        playThroughEarpieceAndroid: false,
+      })
+    })().catch(() => {})
     return () => {
       soundRef.current?.unloadAsync().catch(() => {})
     }
@@ -85,17 +107,25 @@ export default function HomeScreen() {
         await soundRef.current.unloadAsync()
         soundRef.current = null
       }
+      await Audio.setAudioModeAsync({
+        allowsRecordingIOS: false,
+        playsInSilentModeIOS: true,
+        playThroughEarpieceAndroid: false,
+      })
       const uri = `data:${mime};base64,${base64}`
-      const { sound } = await Audio.Sound.createAsync({ uri })
+      const { sound } = await Audio.Sound.createAsync(
+        { uri },
+        { shouldPlay: true }
+      )
       soundRef.current = sound
-      await sound.playAsync()
     } catch (e) {
       console.warn("Could not play TTS audio", e)
     }
   }
 
   async function startRecording() {
-    if (busy || recording) return
+    if (busy || recording || starting.current) return
+    starting.current = true
     setError(null)
     try {
       const perm = await Audio.requestPermissionsAsync()
@@ -103,46 +133,85 @@ export default function HomeScreen() {
         setError("Microphone permission is required.")
         return
       }
+
+      // Stop any playback so the mic can open
+      if (soundRef.current) {
+        await soundRef.current.stopAsync().catch(() => {})
+        await soundRef.current.unloadAsync().catch(() => {})
+        soundRef.current = null
+      }
+
       await Audio.setAudioModeAsync({
         allowsRecordingIOS: true,
         playsInSilentModeIOS: true,
+        staysActiveInBackground: false,
+        shouldDuckAndroid: true,
+        playThroughEarpieceAndroid: false,
       })
-      const { recording: rec } = await Audio.Recording.createAsync(
-        Audio.RecordingOptionsPresets.HIGH_QUALITY
-      )
+
+      const rec = new Audio.Recording()
+      await rec.prepareToRecordAsync(Audio.RecordingOptionsPresets.HIGH_QUALITY)
+      await rec.startAsync()
       recorder.current = rec
+      startedAt.current = Date.now()
       setRecording(true)
     } catch (e) {
+      recorder.current = null
+      setRecording(false)
       setError(e instanceof Error ? e.message : "Could not start recording")
+    } finally {
+      starting.current = false
     }
   }
 
   async function stopAndSend() {
-    if (!recorder.current) {
+    if (starting.current) {
+      // Wait briefly for start to finish (tap races)
+      await new Promise((r) => setTimeout(r, 300))
+    }
+    const rec = recorder.current
+    if (!rec) {
       setRecording(false)
       return
     }
-    setRecording(false)
-    setBusy(true)
-    try {
-      await recorder.current.stopAndUnloadAsync()
-      const uri = recorder.current.getURI()
-      recorder.current = null
-      if (!uri) throw new Error("No recording captured")
 
-      const fileRes = await fetch(uri)
-      const blob = await fileRes.blob()
+    setBusy(true)
+    setRecording(false)
+    try {
+      const elapsed = Date.now() - startedAt.current
+      if (elapsed < 600) {
+        await new Promise((r) => setTimeout(r, 600 - elapsed))
+      }
+
+      const status = await rec.getStatusAsync()
+      if (!status.isRecording && !status.canRecord) {
+        throw new Error("Recording did not start — try again and hold a bit longer.")
+      }
+
+      await rec.stopAndUnloadAsync()
+      const uri = rec.getURI()
+      recorder.current = null
+      if (!uri) throw new Error("No recording file was created.")
+
       const form = new FormData()
-      form.append("audio", blob as unknown as Blob, "speech.m4a")
+      appendAudio(form, uri)
       form.append("sessionId", sessionId.current)
       form.append("speak", "true")
 
       const res = await fetch(`${apiBase()}/api/converse`, {
         method: "POST",
         body: form,
+        // Do not set Content-Type — RN sets multipart boundary
       })
-      const data = (await res.json()) as ConverseResponse
-      if (!res.ok) throw new Error(data.error || "Converse failed")
+
+      const text = await res.text()
+      let data: ConverseResponse
+      try {
+        data = JSON.parse(text) as ConverseResponse
+      } catch {
+        throw new Error(`Bad API response (${res.status}): ${text.slice(0, 120)}`)
+      }
+      if (!res.ok) throw new Error(data.error || `Converse failed (${res.status})`)
 
       setHeard(data.transcript || "")
       setReply(data.reply || "")
@@ -151,10 +220,36 @@ export default function HomeScreen() {
       if (data.audioBase64 && data.audioMime) {
         await playReplyAudio(data.audioBase64, data.audioMime)
       }
+      setApiOk(true)
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Something went wrong")
+      const msg = e instanceof Error ? e.message : "Something went wrong"
+      // Surface the classic RN file-upload failure clearly
+      if (/network request failed/i.test(msg)) {
+        setError(
+          `Network request failed talking to ${apiBase()}. Check apiUrl and that the phone can reach Vercel.`
+        )
+      } else {
+        setError(msg)
+      }
     } finally {
       setBusy(false)
+      try {
+        await Audio.setAudioModeAsync({
+          allowsRecordingIOS: true,
+          playsInSilentModeIOS: true,
+        })
+      } catch {
+        /* ignore */
+      }
+    }
+  }
+
+  async function onMicPress() {
+    if (busy) return
+    if (recording) {
+      await stopAndSend()
+    } else {
+      await startRecording()
     }
   }
 
@@ -166,7 +261,15 @@ export default function HomeScreen() {
       <StatusBar style="dark" />
       <Text style={styles.brand}>Scribble</Text>
       <Text style={styles.sub}>
-        {needsReply ? "Listening for your answer…" : "Speak. I’ll ask if I need more."}
+        {needsReply
+          ? "Listening for your answer…"
+          : recording
+            ? "Recording — tap again when done"
+            : "Tap to speak. I’ll ask if I need more."}
+      </Text>
+      <Text style={styles.apiHint}>
+        API: {apiOk === false ? "unreachable · " : apiOk ? "ok · " : ""}
+        {apiBase()}
       </Text>
 
       <View style={styles.glance}>
@@ -198,8 +301,7 @@ export default function HomeScreen() {
       </View>
 
       <Pressable
-        onPressIn={startRecording}
-        onPressOut={stopAndSend}
+        onPress={onMicPress}
         disabled={busy}
         style={[
           styles.mic,
@@ -210,7 +312,9 @@ export default function HomeScreen() {
         {busy ? (
           <ActivityIndicator color="#f7fffb" size="large" />
         ) : (
-          <Text style={styles.micText}>{recording ? "Listening…" : "Hold to speak"}</Text>
+          <Text style={styles.micText}>
+            {recording ? "Tap to send" : "Tap to speak"}
+          </Text>
         )}
       </Pressable>
 
@@ -232,7 +336,7 @@ const styles = StyleSheet.create({
     paddingTop: 64,
     paddingBottom: 40,
     backgroundColor: "#eef6f2",
-    gap: 16,
+    gap: 12,
   },
   brand: {
     fontSize: 40,
@@ -243,7 +347,11 @@ const styles = StyleSheet.create({
   sub: {
     fontSize: 16,
     color: "#4a6b63",
-    marginBottom: 8,
+  },
+  apiHint: {
+    fontSize: 11,
+    color: "#7a9a92",
+    marginBottom: 4,
   },
   glance: { gap: 10, flexGrow: 1 },
   card: {
@@ -286,7 +394,7 @@ const styles = StyleSheet.create({
   },
   micActive: { backgroundColor: "#c45c3e", transform: [{ scale: 1.04 }] },
   micBusy: { opacity: 0.7 },
-  micText: { color: "#f7fffb", fontSize: 18, fontWeight: "600" },
+  micText: { color: "#f7fffb", fontSize: 18, fontWeight: "600", textAlign: "center" },
   mirror: { gap: 6, minHeight: 48 },
   heard: { color: "#4a6b63", fontSize: 14 },
   reply: { color: "#1a3f38", fontSize: 15, fontWeight: "500" },
