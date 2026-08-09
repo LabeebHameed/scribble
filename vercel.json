@@ -1,0 +1,6 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "rootDirectory": "apps/web",
+  "installCommand": "pnpm install",
+  "buildCommand": "pnpm turbo build --filter=web"
+}

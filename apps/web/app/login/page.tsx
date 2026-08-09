@@ -33,7 +33,13 @@ export default function LoginPage() {
       })
       const data = await res.json()
       if (!res.ok) {
-        setError(data.error || "Failed")
+        if (data.error?.includes("DATABASE_URL") || res.status === 500) {
+          setError(
+            "Server database is not configured yet. Set DATABASE_URL on Vercel and run migrations."
+          )
+        } else {
+          setError(data.error || "Failed")
+        }
         return
       }
       router.replace("/today")

@@ -16,7 +16,7 @@ packages/ai    LLM client, extraction, tool defs
 packages/ui    shadcn components
 ```
 
-## Quick start
+## Quick start (local)
 
 ```bash
 # Postgres 16 + pgvector already assumed locally
@@ -29,6 +29,26 @@ pnpm --filter web dev
 ```
 
 Demo login: `demo@scribble.app` / `scribble`
+
+## Deploy on Vercel
+
+The repo includes [`vercel.json`](vercel.json) with `rootDirectory: apps/web` so Vercel treats this as a **Next.js monorepo app**, not a static `public/` site.
+
+1. Import the GitHub repo in Vercel (branch `main`).
+2. **Do not** override Output Directory to `public` — leave framework detection to Next.js.
+3. Add environment variables in Vercel → Settings → Environment Variables:
+   - `DATABASE_URL` — [Neon](https://neon.tech) or Vercel Postgres (must support `pgvector`)
+   - `AUTH_SECRET` — long random string
+   - `NEXT_PUBLIC_APP_URL` — your production URL (e.g. `https://scribble.vercel.app`)
+   - Optional: `OPENAI_API_KEY`, `OPENAI_BASE_URL`, `OPENAI_MODEL`
+4. After first deploy, run migrations against production DB (from your machine):
+   ```bash
+   DATABASE_URL="postgresql://..." pnpm db:migrate
+   DATABASE_URL="postgresql://..." pnpm db:seed
+   ```
+5. Check health: `GET /api/health` should return `{ ok: true, db: "connected" }`.
+
+If build fails with “No Output Directory named public”, clear any custom **Output Directory** in Vercel project settings (leave blank for Next.js) and redeploy. Root [`vercel.json`](vercel.json) sets `rootDirectory: apps/web` so Vercel deploys the Next.js app, not a static `public/` folder at the repo root.
 
 ## Environment
 

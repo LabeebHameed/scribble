@@ -16,6 +16,12 @@ export async function POST(req: NextRequest) {
 
   if (body.action === "demo") {
     const email = "demo@scribble.app"
+    if (!process.env.DATABASE_URL) {
+      return json(
+        { error: "DATABASE_URL is not configured on the server." },
+        { status: 503 }
+      )
+    }
     const rows = await db.select().from(users).where(eq(users.email, email)).limit(1)
     let user = rows[0]
     if (!user) {
