@@ -30,34 +30,35 @@ pnpm --filter web dev
 
 Demo login: `demo@scribble.app` / `scribble`
 
-## Deploy on Vercel
+## Deploy on Vercel + Neon
 
-Root `app/` and `public/` are symlinks into `apps/web/` so Vercel can deploy from the monorepo root when Root Directory is not set. [`vercel.json`](vercel.json) pins `"framework": "nextjs"`.
-
-1. Import the GitHub repo in Vercel (branch `main`).
-2. In **Project Settings → Build & Deployment**, confirm:
-   - **Framework Preset:** Next.js (or leave default — `vercel.json` overrides)
-   - **Output Directory:** leave blank (must **not** be `public`)
-   - **Root Directory:** blank (repo root) **or** `apps/web` — both work with this repo layout
-3. Add environment variables in Vercel → Settings → Environment Variables:
-   - `DATABASE_URL` — [Neon](https://neon.tech) or Vercel Postgres (must support `pgvector`)
-   - `AUTH_SECRET` — long random string
-   - `NEXT_PUBLIC_APP_URL` — your production URL (e.g. `https://scribble.vercel.app`)
+1. Connect [Neon](https://neon.tech) to your Vercel project (Storage → Neon). Vercel will inject `DATABASE_URL` and/or `POSTGRES_URL`.
+2. In **[Project Settings → Build & Deployment](https://vercel.com/labeebs-projects-649a4343/scribble/settings)**:
+   - **Root Directory:** `apps/web` (enable “Include source files outside of the Root Directory”)
+   - **Framework Preset:** Next.js
+   - **Output Directory:** leave **blank** (turn off any override — must not be `public`)
+   - **Build Command:** leave blank (uses `vercel-build` / `vercel.json`)
+3. Add environment variables:
+   - `AUTH_SECRET` — long random string (also used for one-time setup)
+   - `NEXT_PUBLIC_APP_URL` — your Vercel URL
    - Optional: `OPENAI_API_KEY`, `OPENAI_BASE_URL`, `OPENAI_MODEL`
-4. After first deploy, run migrations against production DB (from your machine):
+4. After the first successful deploy, initialize the database (no local CLI needed):
    ```bash
-   DATABASE_URL="postgresql://..." pnpm db:migrate
-   DATABASE_URL="postgresql://..." pnpm db:seed
+   curl -X POST https://YOUR-APP.vercel.app/api/setup \
+     -H "x-setup-secret: YOUR_AUTH_SECRET"
    ```
-5. Check health: `GET /api/health` should return `{ ok: true, db: "connected" }`.
+   This runs migrations + creates the demo user (`demo@scribble.app` / `scribble`).
+5. Check `GET /api/health` → `{ "ok": true, "db": "connected" }`.
 
-If build fails with “No Output Directory named public”, open [Project Settings → Build & Deployment](https://vercel.com/labeebs-projects-649a4343/scribble/settings) and **clear the Output Directory override** (leave blank for Next.js), then redeploy.
+If deploy fails with “No Output Directory named public”, clear the **Output Directory** override in Vercel settings and redeploy. Connecting Neon does not fix that — it is a project framework setting issue.
+
+Root `app/` and `public/` symlinks support repo-root deploys as a fallback when Root Directory is left blank.
 
 ## Environment
 
 | Var | Purpose |
 |-----|---------|
-| `DATABASE_URL` | Postgres connection |
+| `DATABASE_URL` / `POSTGRES_URL` | Postgres connection (auto-set by Neon on Vercel) |
 | `OPENAI_BASE_URL` | OpenRouter / NVIDIA / OpenAI base |
 | `OPENAI_API_KEY` | Hosted LLM key (optional — heuristic mode works offline) |
 | `OPENAI_MODEL` | Chat model id |

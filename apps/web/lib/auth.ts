@@ -1,7 +1,7 @@
 import { createHash, randomBytes, scryptSync, timingSafeEqual } from "node:crypto"
 import { cookies } from "next/headers"
 import { eq } from "drizzle-orm"
-import { getDb, sessions, users } from "@workspace/db"
+import { getDb, isDatabaseConfigured, sessions, users } from "@workspace/db"
 
 const COOKIE = "scribble_session"
 
@@ -47,25 +47,30 @@ export async function destroySession() {
 }
 
 export async function getCurrentUser() {
+  if (!isDatabaseConfigured()) return null
   const jar = await cookies()
   const token = jar.get(COOKIE)?.value
   if (!token) return null
-  const db = getDb()
-  const rows = await db
-    .select({
-      id: users.id,
-      email: users.email,
-      name: users.name,
-      tone: users.tone,
-      notificationRules: users.notificationRules,
-    })
-    .from(sessions)
-    .innerJoin(users, eq(users.id, sessions.userId))
-    .where(eq(sessions.token, token))
-    .limit(1)
-  const user = rows[0]
-  if (!user) return null
-  return user
+  try {
+    const db = getDb()
+    const rows = await db
+      .select({
+        id: users.id,
+        email: users.email,
+        name: users.name,
+        tone: users.tone,
+        notificationRules: users.notificationRules,
+      })
+      .from(sessions)
+      .innerJoin(users, eq(users.id, sessions.userId))
+      .where(eq(sessions.token, token))
+      .limit(1)
+    const user = rows[0]
+    if (!user) return null
+    return user
+  } catch {
+    return null
+  }
 }
 
 export async function requireUser() {
