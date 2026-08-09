@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server"
 import { eq } from "drizzle-orm"
-import { getDb, users } from "@workspace/db"
+import { getDb, isDatabaseConfigured, users } from "@workspace/db"
 import { createSession, hashPassword, verifyPassword } from "@/lib/auth"
 import { badRequest, json } from "@/lib/api"
 
@@ -12,16 +12,20 @@ export async function POST(req: NextRequest) {
     name?: string
   }
 
+  if (!isDatabaseConfigured()) {
+    return json(
+      {
+        error:
+          "Database not configured. Connect Neon on Vercel, then POST /api/setup with x-setup-secret.",
+      },
+      { status: 503 }
+    )
+  }
+
   const db = getDb()
 
   if (body.action === "demo") {
     const email = "demo@scribble.app"
-    if (!process.env.DATABASE_URL) {
-      return json(
-        { error: "DATABASE_URL is not configured on the server." },
-        { status: 503 }
-      )
-    }
     const rows = await db.select().from(users).where(eq(users.email, email)).limit(1)
     let user = rows[0]
     if (!user) {

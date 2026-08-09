@@ -1,14 +1,15 @@
 import { NextResponse } from "next/server"
-import { getSql } from "@workspace/db"
+import { getSql, isDatabaseConfigured } from "@workspace/db"
 
 export async function GET() {
-  if (!process.env.DATABASE_URL) {
+  if (!isDatabaseConfigured()) {
     return NextResponse.json(
       {
         ok: false,
         status: "degraded",
         db: "not_configured",
-        message: "Set DATABASE_URL in Vercel project settings (Neon or Vercel Postgres).",
+        message:
+          "Set DATABASE_URL or POSTGRES_URL from Neon in Vercel environment variables.",
       },
       { status: 503 }
     )
