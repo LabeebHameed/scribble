@@ -34,13 +34,10 @@ Demo login: `demo@scribble.app` / `scribble`
 
 **→ See [VERCEL.md](VERCEL.md) for exact dashboard settings.**
 
-**Root Directory:** use `apps/web` (recommended) **or** leave blank (repo root) — both are supported. You must clear any **Output Directory** override (`public` breaks deploy).
-
 1. Set **Root Directory** to `apps/web` and enable **Include source files outside of the Root Directory**.
-2. Clear any **Output Directory** override (must be blank, not `public`).
-3. Connect Neon for `DATABASE_URL` / `POSTGRES_URL`.
-4. Add `AUTH_SECRET` and `NEXT_PUBLIC_APP_URL`.
-5. After deploy succeeds, run `POST /api/setup` with header `x-setup-secret: YOUR_AUTH_SECRET`.
+2. Connect Neon for `DATABASE_URL` / `POSTGRES_URL`.
+3. Add `AUTH_SECRET` and `NEXT_PUBLIC_APP_URL`.
+4. After deploy succeeds, run `POST /api/setup` with header `x-setup-secret: YOUR_AUTH_SECRET`.
 
 ## Environment
 

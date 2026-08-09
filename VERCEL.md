@@ -1,67 +1,31 @@
-# Vercel deployment — read this first
+# Deploy Scribble on Vercel
 
-## What should Root Directory be?
+## The one setting that matters
 
-| Setting | When to use |
-|---------|-------------|
-| **`apps/web`** | **Recommended** — use this if you can change it |
-| **Blank (repo root)** | Works too — leave as-is if you already have it blank |
-
-**Both are supported.** Pick one and follow the matching row below.
-
----
-
-## Option A — Root Directory = `apps/web` (recommended)
-
-Open: https://vercel.com/labeebs-projects-649a4343/scribble/settings
+In [Project Settings → Build and Deployment](https://vercel.com/labeebs-projects-649a4343/scribble/settings):
 
 | Setting | Value |
 |---------|--------|
-| Root Directory | `apps/web` |
-| Include source files outside Root Directory | **On** |
-| Framework Preset | **Next.js** |
-| Build Command | *(empty — override OFF)* |
-| Output Directory | *(empty — override OFF)* |
-| Install Command | *(empty — override OFF)* |
+| **Root Directory** | `apps/web` |
+| **Include source files outside of the Root Directory** | **On** |
 
-Uses `apps/web/vercel.json` automatically.
+That is it for project layout. There is no separate “Output Directory” field in the current Vercel UI for Next.js — you do not need to look for one.
 
----
-
-## Option B — Root Directory blank (repo root)
-
-Same settings page:
-
-| Setting | Value |
-|---------|--------|
-| Root Directory | *(blank)* |
-| Framework Preset | **Next.js** |
-| Build Command | *(empty — override OFF)* |
-| **Output Directory** | **Must be empty — turn OFF the override toggle** |
-| Install Command | *(empty — override OFF)* |
-
-Uses root `vercel.json` automatically.
-
-### Critical: turn OFF Output Directory override
-
-If you see **Output Directory = `public`**, that is the bug. Click **Edit**, turn **Override** off, save, redeploy.
-
-Error you may see if this is wrong:
-```
-No Output Directory named "public" found
-```
-
----
+Leaving Root Directory **blank** (repo root) is what causes the broken deploys. This repo is a monorepo; the Next.js app is in `apps/web`.
 
 ## Environment variables
 
+In **Settings → Environment Variables**:
+
 | Variable | Required |
 |----------|----------|
-| `DATABASE_URL` or `POSTGRES_URL` | Yes (Neon) |
+| `DATABASE_URL` or `POSTGRES_URL` | Yes (from Neon) |
 | `AUTH_SECRET` | Yes |
-| `NEXT_PUBLIC_APP_URL` | Yes |
+| `NEXT_PUBLIC_APP_URL` | Yes (your Vercel URL) |
 
-## After first successful deploy
+## After deploy succeeds
+
+Initialize the database (once):
 
 ```bash
 curl -X POST https://YOUR-APP.vercel.app/api/setup \
@@ -69,3 +33,12 @@ curl -X POST https://YOUR-APP.vercel.app/api/setup \
 ```
 
 Login: `demo@scribble.app` / `scribble`
+
+## How to check if deploy worked
+
+- Open your Vercel **Deployments** tab in the browser — do not use `vercel inspect` (it hangs without a login token).
+- Or visit `https://YOUR-APP.vercel.app/api/health` — should return JSON with `"ok": true` after setup.
+
+## Redeploy
+
+After changing Root Directory to `apps/web`, click **Redeploy** on the latest `main` deployment.
