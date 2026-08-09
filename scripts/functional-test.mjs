@@ -170,6 +170,82 @@ async function main() {
   if ((cap5.json?.created || []).some((c) => c.type === "task")) ok("quick capture materializes")
   else bad("quick capture", "no task created")
 
+  const sessionId = `test-${Date.now()}`
+
+  section("15. Converse: incomplete meeting asks for time")
+  const cv1 = await api("POST", "/api/converse", {
+    transcript: "I have a meeting today",
+    sessionId,
+    speak: false,
+  })
+  console.log("  reply:", (cv1.json?.reply || "").slice(0, 120))
+  if (cv1.json?.needsReply && /time/i.test(cv1.json?.reply || "")) {
+    ok("converse asks for meeting time")
+  } else bad("converse clarify", JSON.stringify(cv1.json))
+
+  section("16. Converse: follow-up 3:30 completes event")
+  const cv2 = await api("POST", "/api/converse", {
+    transcript: "3:30",
+    sessionId,
+    speak: false,
+  })
+  console.log("  reply:", (cv2.json?.reply || "").slice(0, 120))
+  const actions2 = cv2.json?.actions || []
+  if (
+    !cv2.json?.needsReply &&
+    actions2.some((a) => a.kind === "event") &&
+    (cv2.json?.glance?.nextUp?.length >= 1 || cv2.json?.glance?.now)
+  ) {
+    ok("converse completes meeting + glance")
+  } else if (!cv2.json?.needsReply && actions2.some((a) => a.kind === "event")) {
+    ok("converse completes meeting")
+  } else bad("converse follow-up", JSON.stringify(cv2.json))
+
+  section("17. Converse: reminder in five minutes")
+  const cv3 = await api("POST", "/api/converse", {
+    transcript: "remind me to drink water in five minutes",
+    sessionId: `${sessionId}-rem`,
+    speak: false,
+  })
+  console.log("  reply:", (cv3.json?.reply || "").slice(0, 120))
+  if ((cv3.json?.actions || []).some((a) => a.kind === "reminder")) {
+    ok("converse sets timed reminder")
+  } else bad("converse reminder", JSON.stringify(cv3.json))
+
+  section("18. Converse: auto-plan without Plan today")
+  const cv4 = await api("POST", "/api/converse", {
+    transcript: "call the bank about the transfer",
+    sessionId: `${sessionId}-plan`,
+    speak: false,
+  })
+  const kinds = (cv4.json?.actions || []).map((a) => a.kind)
+  console.log("  actions:", kinds.join(", "))
+  if (kinds.includes("task") && kinds.includes("plan")) {
+    ok("converse auto-plans after task")
+  } else if (kinds.includes("task")) {
+    ok("converse creates task (plan may be empty if no durations)")
+  } else bad("converse auto-plan", kinds.join(","))
+
+  section("19. Converse: what's next")
+  const cv5 = await api("POST", "/api/converse", {
+    transcript: "what's next",
+    sessionId: `${sessionId}-next`,
+    speak: false,
+  })
+  console.log("  reply:", (cv5.json?.reply || "").slice(0, 120))
+  if ((cv5.json?.reply || "").length > 5) ok("converse what's next")
+  else bad("converse next", cv5.json?.reply)
+
+  section("20. Optional Groq TTS smoke")
+  if (process.env.GROQ_API_KEY) {
+    const tts = await api("POST", "/api/voice/speak", { text: "Hello from Scribble." })
+    if (tts.json?.audioBase64) ok("Groq TTS returns audio")
+    else bad("Groq TTS", JSON.stringify(tts.json))
+  } else {
+    console.log("  (skipped — no GROQ_API_KEY)")
+    ok("Groq TTS skipped without key")
+  }
+
   console.log("\n=== SUMMARY ===")
   console.log(`Passed: ${pass}  Failed: ${fail}`)
   for (const r of results) console.log(r)

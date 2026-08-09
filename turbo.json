@@ -14,6 +14,7 @@
         "EMBEDDING_MODEL",
         "EMBEDDING_MODE",
         "NEXT_PUBLIC_APP_URL",
+        "GROQ_API_KEY",
         "VERCEL"
       ],
       "outputs": [".next/**", "!.next/cache/**", ".vercel/output/**"]

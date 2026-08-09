@@ -16,7 +16,24 @@ export type LifeIntent =
   | { type: "energy"; level: "low" | "medium" | "high"; notes?: string }
   | { type: "plan_day" }
   | { type: "list_tasks" }
+  | { type: "whats_next" }
   | { type: "memory_query"; query: string }
+  | {
+      type: "incomplete"
+      kind: "event" | "reminder"
+      title: string
+      missing: Array<"start" | "fireAt">
+      ask: string
+      partial: Record<string, unknown>
+    }
+
+export type PendingClarification = {
+  kind: "event" | "reminder"
+  title: string
+  missing: Array<"start" | "fireAt">
+  partial: Record<string, unknown>
+  ask: string
+}
 
 const WORD_NUMBERS: Record<string, number> = {
   one: 1,
@@ -50,21 +67,21 @@ export function parseDelayMinutes(text: string): number | null {
   return n
 }
 
-/** Parse "at 3:30", "at 3:30pm", "meeting at 15:00". */
+/** Parse clock times including bare "3:30", "3:30pm", "at 3". */
 export function parseClockTime(text: string, now = new Date()): Date | null {
-  const lower = text.toLowerCase()
-  const m = lower.match(
-    /\bat\s+(\d{1,2})(?::(\d{2}))?\s*(am|pm)?\b/
-  )
+  const lower = text.toLowerCase().trim()
+  const m =
+    lower.match(/\bat\s+(\d{1,2})(?::(\d{2}))?\s*(am|pm)?\b/) ||
+    lower.match(/^(\d{1,2})(?::(\d{2}))?\s*(am|pm)?$/) ||
+    lower.match(/\b(\d{1,2})(?::(\d{2}))\s*(am|pm)?\b/)
   if (!m) return null
   let hour = Number(m[1])
   const minute = m[2] ? Number(m[2]) : 0
   const ampm = m[3]
   if (ampm === "pm" && hour < 12) hour += 12
   if (ampm === "am" && hour === 12) hour = 0
-  if (!ampm && hour <= 12 && /meeting|appointment|call|sync/i.test(text) && hour < 8) {
-    hour += 12
-  }
+  if (!ampm && hour >= 1 && hour <= 7) hour += 12
+  if (hour > 23 || minute > 59) return null
   const d = new Date(now)
   d.setHours(hour, minute, 0, 0)
   if (d <= now) d.setDate(d.getDate() + 1)
@@ -95,6 +112,74 @@ function isListRequest(text: string) {
   return /\b(on my plate|what do i have|open tasks|what's due)\b/i.test(text)
 }
 
+function isWhatsNext(text: string) {
+  return /\b(what('?s| is) next|what now|what should i do next)\b/i.test(text)
+}
+
+function meetingTitle(text: string) {
+  const m = text.match(
+    /\b(?:have a |got a |there's a |there is a )?(meeting|appointment|sync|standup)(?:\s+with\s+[^,.]+)?/i
+  )
+  if (!m) return "Meeting"
+  const raw = m[0].replace(/^(have a |got a |there's a |there is a )/i, "")
+  return raw.charAt(0).toUpperCase() + raw.slice(1)
+}
+
+/** Merge a follow-up utterance into a pending clarification. */
+export function resolveClarification(
+  pending: PendingClarification,
+  answer: string,
+  now = new Date()
+): { intent: LifeIntent | null; stillMissing: PendingClarification | null; ask?: string } {
+  const delayMin = parseDelayMinutes(answer)
+  const clock = parseClockTime(answer, now)
+
+  if (pending.kind === "event") {
+    if (!clock) {
+      return {
+        intent: null,
+        stillMissing: pending,
+        ask: "I still need a time — for example, three thirty or at five.",
+      }
+    }
+    const title = pending.title || "Meeting"
+    return {
+      intent: {
+        type: "event",
+        title,
+        start: clock,
+        end: new Date(clock.getTime() + 60 * 60 * 1000),
+      },
+      stillMissing: null,
+    }
+  }
+
+  if (pending.kind === "reminder") {
+    const fireAt = delayMin
+      ? new Date(now.getTime() + delayMin * 60 * 1000)
+      : clock
+    if (!fireAt) {
+      return {
+        intent: null,
+        stillMissing: pending,
+        ask: "When should I remind you — in five minutes, or at a specific time?",
+      }
+    }
+    const title = pending.title || "Reminder"
+    return {
+      intent: {
+        type: "reminder",
+        title,
+        actionLanguage: title.charAt(0).toUpperCase() + title.slice(1),
+        fireAt,
+      },
+      stillMissing: null,
+    }
+  }
+
+  return { intent: null, stillMissing: pending, ask: pending.ask }
+}
+
 export function parseIntents(raw: string, now = new Date()): LifeIntent[] {
   const text = raw.trim()
   const lower = text.toLowerCase()
@@ -104,6 +189,11 @@ export function parseIntents(raw: string, now = new Date()): LifeIntent[] {
 
   if (isMemoryQuery(text)) {
     intents.push({ type: "memory_query", query: text })
+    return intents
+  }
+
+  if (isWhatsNext(text)) {
+    intents.push({ type: "whats_next" })
     return intents
   }
 
@@ -126,30 +216,51 @@ export function parseIntents(raw: string, now = new Date()): LifeIntent[] {
   const delayMin = parseDelayMinutes(text)
   const clock = parseClockTime(text, now)
 
-  if (/\b(meeting|appointment|sync|standup|call with)\b/i.test(text) && clock) {
-    const title =
-      text.match(/\b(?:have a|got a)?\s*(meeting|appointment|sync|standup)(?:\s+with\s+[^,.]+)?/i)?.[0] ||
-      "Meeting"
-    const end = new Date(clock.getTime() + 60 * 60 * 1000)
-    intents.push({
-      type: "event",
-      title: title.charAt(0).toUpperCase() + title.slice(1),
-      start: clock,
-      end,
-    })
+  // Meeting / appointment — ask for time if missing
+  if (/\b(meeting|appointment|sync|standup)\b/i.test(text)) {
+    const title = meetingTitle(text)
+    if (clock) {
+      intents.push({
+        type: "event",
+        title,
+        start: clock,
+        end: new Date(clock.getTime() + 60 * 60 * 1000),
+      })
+    } else {
+      intents.push({
+        type: "incomplete",
+        kind: "event",
+        title,
+        missing: ["start"],
+        ask: `What time is the ${title.toLowerCase()}?`,
+        partial: { title },
+      })
+    }
+    return intents
   }
 
   if (/\bremind me\b/i.test(text)) {
     const title = stripReminderPrefix(text) || "Reminder"
-    const fireAt = delayMin
-      ? new Date(now.getTime() + delayMin * 60 * 1000)
-      : clock || new Date(now.getTime() + 30 * 60 * 1000)
-    intents.push({
-      type: "reminder",
-      title,
-      actionLanguage: title.charAt(0).toUpperCase() + title.slice(1),
-      fireAt,
-    })
+    if (delayMin != null || clock) {
+      const fireAt = delayMin
+        ? new Date(now.getTime() + delayMin * 60 * 1000)
+        : clock!
+      intents.push({
+        type: "reminder",
+        title,
+        actionLanguage: title.charAt(0).toUpperCase() + title.slice(1),
+        fireAt,
+      })
+    } else {
+      intents.push({
+        type: "incomplete",
+        kind: "reminder",
+        title,
+        missing: ["fireAt"],
+        ask: "When should I remind you?",
+        partial: { title },
+      })
+    }
     return intents
   }
 
@@ -161,10 +272,7 @@ export function parseIntents(raw: string, now = new Date()): LifeIntent[] {
     .filter((s) => s.length > 3)
 
   for (const seg of segments) {
-    if (
-      taskVerbs.test(seg) ||
-      /\b(need to|todo|to-do)\b/i.test(seg)
-    ) {
+    if (taskVerbs.test(seg) || /\b(need to|todo|to-do)\b/i.test(seg)) {
       const title = seg
         .replace(/^(need to|todo|to-do)\s*/i, "")
         .replace(/\s+tomorrow\b/i, "")

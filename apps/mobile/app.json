@@ -12,6 +12,14 @@
     },
     "extra": {
       "apiUrl": "http://localhost:3000"
+    },
+    "ios": {
+      "infoPlist": {
+        "NSMicrophoneUsageDescription": "Scribble listens when you hold the speak button so it can capture tasks, meetings, and reminders."
+      }
+    },
+    "android": {
+      "permissions": ["RECORD_AUDIO"]
     }
   }
 }

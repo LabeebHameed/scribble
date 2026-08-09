@@ -356,6 +356,24 @@ export const chatMessages = pgTable("chat_messages", {
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 })
 
+/** Pending voice clarification (e.g. meeting missing time). */
+export const voiceSessions = pgTable("voice_sessions", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: uuid("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  sessionKey: text("session_key").notNull(),
+  pending: jsonb("pending").$type<{
+    kind: "event" | "reminder"
+    title: string
+    missing: Array<"start" | "fireAt">
+    partial: Record<string, unknown>
+    ask: string
+  } | null>(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+})
+
 export type User = typeof users.$inferSelect
 export type TaskRow = typeof tasks.$inferSelect
 export type CaptureRow = typeof captures.$inferSelect
