@@ -21,6 +21,12 @@ export async function withAuth<T>(
     return await handler(user)
   } catch (e) {
     if (e instanceof Error && e.message === "UNAUTHORIZED") return unauthorized()
+    if (e instanceof Error && e.message.includes("DATABASE_URL")) {
+      return json(
+        { error: "Database not configured. Set DATABASE_URL and run migrations." },
+        { status: 503 }
+      )
+    }
     console.error(e)
     return json({ error: "Internal error" }, { status: 500 })
   }
