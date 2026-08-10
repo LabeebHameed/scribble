@@ -1,60 +1,32 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 import {
   ActivityIndicator,
-  Platform,
   Pressable,
   StyleSheet,
   Text,
   View,
 } from "react-native"
 import { Audio } from "expo-av"
-import Constants from "expo-constants"
-import { StatusBar } from "expo-status-bar"
+import {
+  apiBase,
+  type AssistantState,
+  type ConverseResponse,
+  type Glance,
+  formatTime,
+} from "../lib/api"
+import { BottomNav } from "../components/BottomNav"
 
-type Glance = {
-  now: { title: string; start: string; end: string } | null
-  needsAttention: Array<{ id: string; message: string; title: string; stage: string }>
-  nextUp: Array<{ title: string; start: string; end: string; kind: string }>
-}
-
-type ConverseResponse = {
-  transcript?: string
-  reply?: string
-  needsReply?: boolean
-  sessionId?: string
-  audioBase64?: string | null
-  audioMime?: string | null
-  glance?: Glance
-  error?: string
-}
-
-function apiBase() {
-  const url =
-    (Constants.expoConfig?.extra as { apiUrl?: string } | undefined)?.apiUrl ||
-    "http://localhost:3000"
-  return url.replace(/\/$/, "")
-}
-
-function formatTime(iso: string) {
-  try {
-    return new Date(iso).toLocaleTimeString([], {
-      hour: "numeric",
-      minute: "2-digit",
-    })
-  } catch {
-    return ""
-  }
-}
-
-/** React Native FormData expects { uri, name, type }, not a Blob. */
 function appendAudio(form: FormData, uri: string) {
-  const name = Platform.OS === "ios" ? "speech.m4a" : "speech.m4a"
-  const type = "audio/m4a"
-  form.append("audio", { uri, name, type } as unknown as Blob)
+  form.append("audio", {
+    uri,
+    name: "speech.m4a",
+    type: "audio/m4a",
+  } as unknown as Blob)
 }
 
-export default function HomeScreen() {
+export default function TodayScreen() {
   const [glance, setGlance] = useState<Glance | null>(null)
+  const [assistant, setAssistant] = useState<AssistantState | null>(null)
   const [recording, setRecording] = useState(false)
   const [busy, setBusy] = useState(false)
   const [heard, setHeard] = useState("")
@@ -68,14 +40,19 @@ export default function HomeScreen() {
   const startedAt = useRef(0)
   const starting = useRef(false)
 
-  const refreshGlance = useCallback(async () => {
+  const refresh = useCallback(async () => {
     try {
       const res = await fetch(`${apiBase()}/api/health`)
       if (!res.ok) throw new Error(`health ${res.status}`)
       setApiOk(true)
       const g = await fetch(`${apiBase()}/api/converse`)
-      const data = (await g.json()) as { glance?: Glance; error?: string }
+      const data = (await g.json()) as {
+        glance?: Glance
+        assistant?: AssistantState
+        error?: string
+      }
       if (data.glance) setGlance(data.glance)
+      if (data.assistant) setAssistant(data.assistant)
     } catch (e) {
       setApiOk(false)
       setError(
@@ -85,7 +62,7 @@ export default function HomeScreen() {
   }, [])
 
   useEffect(() => {
-    refreshGlance()
+    refresh()
     ;(async () => {
       await Audio.requestPermissionsAsync()
       await Audio.setAudioModeAsync({
@@ -99,7 +76,7 @@ export default function HomeScreen() {
     return () => {
       soundRef.current?.unloadAsync().catch(() => {})
     }
-  }, [refreshGlance])
+  }, [refresh])
 
   async function playReplyAudio(base64: string, mime: string) {
     try {
@@ -133,14 +110,11 @@ export default function HomeScreen() {
         setError("Microphone permission is required.")
         return
       }
-
-      // Stop any playback so the mic can open
       if (soundRef.current) {
         await soundRef.current.stopAsync().catch(() => {})
         await soundRef.current.unloadAsync().catch(() => {})
         soundRef.current = null
       }
-
       await Audio.setAudioModeAsync({
         allowsRecordingIOS: true,
         playsInSilentModeIOS: true,
@@ -148,7 +122,6 @@ export default function HomeScreen() {
         shouldDuckAndroid: true,
         playThroughEarpieceAndroid: false,
       })
-
       const rec = new Audio.Recording()
       await rec.prepareToRecordAsync(Audio.RecordingOptionsPresets.HIGH_QUALITY)
       await rec.startAsync()
@@ -165,29 +138,21 @@ export default function HomeScreen() {
   }
 
   async function stopAndSend() {
-    if (starting.current) {
-      // Wait briefly for start to finish (tap races)
-      await new Promise((r) => setTimeout(r, 300))
-    }
+    if (starting.current) await new Promise((r) => setTimeout(r, 300))
     const rec = recorder.current
     if (!rec) {
       setRecording(false)
       return
     }
-
     setBusy(true)
     setRecording(false)
     try {
       const elapsed = Date.now() - startedAt.current
-      if (elapsed < 600) {
-        await new Promise((r) => setTimeout(r, 600 - elapsed))
-      }
-
+      if (elapsed < 600) await new Promise((r) => setTimeout(r, 600 - elapsed))
       const status = await rec.getStatusAsync()
       if (!status.isRecording && !status.canRecord) {
-        throw new Error("Recording did not start — try again and hold a bit longer.")
+        throw new Error("Recording did not start — try again.")
       }
-
       await rec.stopAndUnloadAsync()
       const uri = rec.getURI()
       recorder.current = null
@@ -201,9 +166,7 @@ export default function HomeScreen() {
       const res = await fetch(`${apiBase()}/api/converse`, {
         method: "POST",
         body: form,
-        // Do not set Content-Type — RN sets multipart boundary
       })
-
       const text = await res.text()
       let data: ConverseResponse
       try {
@@ -217,13 +180,13 @@ export default function HomeScreen() {
       setReply(data.reply || "")
       setNeedsReply(Boolean(data.needsReply))
       if (data.glance) setGlance(data.glance)
+      if (data.assistant) setAssistant(data.assistant)
       if (data.audioBase64 && data.audioMime) {
         await playReplyAudio(data.audioBase64, data.audioMime)
       }
       setApiOk(true)
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Something went wrong"
-      // Surface the classic RN file-upload failure clearly
       if (/network request failed/i.test(msg)) {
         setError(
           `Network request failed talking to ${apiBase()}. Check apiUrl and that the phone can reach Vercel.`
@@ -246,57 +209,62 @@ export default function HomeScreen() {
 
   async function onMicPress() {
     if (busy) return
-    if (recording) {
-      await stopAndSend()
-    } else {
-      await startRecording()
-    }
+    if (recording) await stopAndSend()
+    else await startRecording()
   }
 
-  const attention = glance?.needsAttention?.[0]
-  const next = glance?.nextUp?.[0]
+  const next = assistant?.nextAction
+  const timeline = glance?.nextUp?.slice(0, 3) || []
 
   return (
     <View style={styles.root}>
-      <StatusBar style="dark" />
       <Text style={styles.brand}>Scribble</Text>
       <Text style={styles.sub}>
         {needsReply
           ? "Listening for your answer…"
           : recording
             ? "Recording — tap again when done"
-            : "Tap to speak. I’ll ask if I need more."}
+            : "Today · tap to speak"}
       </Text>
       <Text style={styles.apiHint}>
         API: {apiOk === false ? "unreachable · " : apiOk ? "ok · " : ""}
         {apiBase()}
       </Text>
 
-      <View style={styles.glance}>
-        {attention ? (
-          <View style={styles.cardAttention}>
-            <Text style={styles.cardLabel}>Needs attention</Text>
-            <Text style={styles.cardTitle}>{attention.message}</Text>
+      <View style={styles.body}>
+        {next && next.source !== "none" ? (
+          <View style={styles.nextCard}>
+            <Text style={styles.cardLabel}>Next</Text>
+            <Text style={styles.nextTitle}>{next.title}</Text>
+            <Text style={styles.nextWhy}>{next.reason}</Text>
+          </View>
+        ) : (
+          <Text style={styles.empty}>Nothing queued — speak a task or reminder.</Text>
+        )}
+
+        {reply ? (
+          <View style={styles.briefing}>
+            <Text style={styles.cardLabel}>Briefing</Text>
+            <Text style={styles.briefingText}>{reply}</Text>
           </View>
         ) : null}
+
+        {timeline.length > 0 ? (
+          <View style={styles.timeline}>
+            <Text style={styles.cardLabel}>Timeline</Text>
+            {timeline.map((b, i) => (
+              <Text key={`${b.title}-${i}`} style={styles.timelineRow}>
+                {formatTime(b.start)} · {b.title}
+              </Text>
+            ))}
+          </View>
+        ) : null}
+
         {glance?.now ? (
-          <View style={styles.card}>
-            <Text style={styles.cardLabel}>Now</Text>
-            <Text style={styles.cardTitle}>{glance.now.title}</Text>
-            <Text style={styles.cardMeta}>
-              {formatTime(glance.now.start)} – {formatTime(glance.now.end)}
-            </Text>
-          </View>
-        ) : null}
-        {next ? (
-          <View style={styles.card}>
-            <Text style={styles.cardLabel}>Next up</Text>
-            <Text style={styles.cardTitle}>{next.title}</Text>
-            <Text style={styles.cardMeta}>{formatTime(next.start)}</Text>
-          </View>
-        ) : null}
-        {!attention && !glance?.now && !next ? (
-          <Text style={styles.empty}>Nothing on your plate yet — tap and speak.</Text>
+          <Text style={styles.nowLine}>
+            Now: {glance.now.title} ({formatTime(glance.now.start)}–
+            {formatTime(glance.now.end)})
+          </Text>
         ) : null}
       </View>
 
@@ -318,13 +286,14 @@ export default function HomeScreen() {
         )}
       </Pressable>
 
-      {(heard || reply) && (
+      {(heard || error) && (
         <View style={styles.mirror}>
           {heard ? <Text style={styles.heard}>You: {heard}</Text> : null}
-          {reply ? <Text style={styles.reply}>Scribble: {reply}</Text> : null}
+          {error ? <Text style={styles.error}>{error}</Text> : null}
         </View>
       )}
-      {error ? <Text style={styles.error}>{error}</Text> : null}
+
+      <BottomNav />
     </View>
   )
 }
@@ -334,9 +303,9 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingHorizontal: 24,
     paddingTop: 64,
-    paddingBottom: 40,
+    paddingBottom: 16,
     backgroundColor: "#eef6f2",
-    gap: 12,
+    gap: 10,
   },
   brand: {
     fontSize: 40,
@@ -344,29 +313,15 @@ const styles = StyleSheet.create({
     color: "#1a3f38",
     letterSpacing: -0.5,
   },
-  sub: {
-    fontSize: 16,
-    color: "#4a6b63",
-  },
-  apiHint: {
-    fontSize: 11,
-    color: "#7a9a92",
-    marginBottom: 4,
-  },
-  glance: { gap: 10, flexGrow: 1 },
-  card: {
-    backgroundColor: "rgba(255,255,255,0.85)",
+  sub: { fontSize: 16, color: "#4a6b63" },
+  apiHint: { fontSize: 11, color: "#7a9a92", marginBottom: 4 },
+  body: { gap: 12, flexGrow: 1 },
+  nextCard: {
+    backgroundColor: "rgba(47,111,100,0.14)",
     borderRadius: 16,
-    padding: 14,
+    padding: 16,
     borderWidth: 1,
-    borderColor: "rgba(31,79,70,0.12)",
-  },
-  cardAttention: {
-    backgroundColor: "rgba(251, 191, 36, 0.2)",
-    borderRadius: 16,
-    padding: 14,
-    borderWidth: 1,
-    borderColor: "rgba(180, 120, 20, 0.35)",
+    borderColor: "rgba(31,79,70,0.18)",
   },
   cardLabel: {
     fontSize: 11,
@@ -375,14 +330,19 @@ const styles = StyleSheet.create({
     color: "#5a7a72",
     marginBottom: 4,
   },
-  cardTitle: { fontSize: 18, fontWeight: "600", color: "#1a3f38" },
-  cardMeta: { fontSize: 13, color: "#5a7a72", marginTop: 2 },
+  nextTitle: { fontSize: 22, fontWeight: "700", color: "#1a3f38" },
+  nextWhy: { fontSize: 14, color: "#4a6b63", marginTop: 4 },
+  briefing: { gap: 4 },
+  briefingText: { fontSize: 16, lineHeight: 22, color: "#1a3f38", fontWeight: "500" },
+  timeline: { gap: 4 },
+  timelineRow: { fontSize: 14, color: "#4a6b63" },
+  nowLine: { fontSize: 13, color: "#5a7a72" },
   empty: { color: "#5a7a72", fontSize: 15 },
   mic: {
     alignSelf: "center",
-    width: 180,
-    height: 180,
-    borderRadius: 90,
+    width: 168,
+    height: 168,
+    borderRadius: 84,
     backgroundColor: "#2f6f64",
     alignItems: "center",
     justifyContent: "center",
@@ -391,12 +351,18 @@ const styles = StyleSheet.create({
     shadowRadius: 16,
     shadowOffset: { width: 0, height: 8 },
     elevation: 6,
+    marginVertical: 8,
   },
   micActive: { backgroundColor: "#c45c3e", transform: [{ scale: 1.04 }] },
   micBusy: { opacity: 0.7 },
-  micText: { color: "#f7fffb", fontSize: 18, fontWeight: "600", textAlign: "center" },
-  mirror: { gap: 6, minHeight: 48 },
-  heard: { color: "#4a6b63", fontSize: 14 },
-  reply: { color: "#1a3f38", fontSize: 15, fontWeight: "500" },
+  micText: {
+    color: "#f7fffb",
+    fontSize: 17,
+    fontWeight: "600",
+    textAlign: "center",
+    paddingHorizontal: 12,
+  },
+  mirror: { gap: 4, minHeight: 20 },
+  heard: { color: "#4a6b63", fontSize: 13 },
   error: { color: "#a33", fontSize: 13 },
 })

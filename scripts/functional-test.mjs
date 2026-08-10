@@ -226,15 +226,74 @@ async function main() {
     ok("converse creates task (plan may be empty if no durations)")
   } else bad("converse auto-plan", kinds.join(","))
 
-  section("19. Converse: what's next")
+  section("19. Converse: what's next is briefing-shaped")
   const cv5 = await api("POST", "/api/converse", {
     transcript: "what's next",
     sessionId: `${sessionId}-next`,
     speak: false,
   })
-  console.log("  reply:", (cv5.json?.reply || "").slice(0, 120))
-  if ((cv5.json?.reply || "").length > 5) ok("converse what's next")
-  else bad("converse next", cv5.json?.reply)
+  const nextReply = cv5.json?.reply || ""
+  console.log("  reply:", nextReply.slice(0, 160))
+  if (
+    nextReply.length > 5 &&
+    (/next|today|energy|open|queued|attention/i.test(nextReply) ||
+      cv5.json?.assistant?.nextAction)
+  ) {
+    ok("converse what's next briefing")
+  } else bad("converse next", nextReply)
+
+  section("21. Converse: briefing not pure task echo")
+  const dentistSession = `${sessionId}-dentist`
+  const cvDent = await api("POST", "/api/converse", {
+    transcript: "I need to call the dentist about my cleaning",
+    sessionId: dentistSession,
+    speak: false,
+  })
+  const dentReply = cvDent.json?.reply || ""
+  console.log("  reply:", dentReply.slice(0, 160))
+  const echoOnly = /^Task:\s/i.test(dentReply.trim()) && !/next|today/i.test(dentReply)
+  if (
+    dentReply.length > 10 &&
+    !echoOnly &&
+    (/next|today|logged|open/i.test(dentReply) || cvDent.json?.assistant?.nextAction)
+  ) {
+    ok("converse reply is briefing-shaped")
+  } else bad("converse briefing shape", dentReply)
+
+  if (cvDent.json?.assistant?.nextAction?.title) {
+    ok("assistant.nextAction present after capture")
+  } else bad("assistant.nextAction", JSON.stringify(cvDent.json?.assistant))
+
+  section("22. Memory round-trip after converse")
+  await new Promise((r) => setTimeout(r, 400))
+  const memDent = await api("GET", "/api/memory?q=dentist")
+  const dentHits = memDent.json?.hits?.length || 0
+  console.log("  dentist hits:", dentHits)
+  if (dentHits >= 1) ok("MIND finds dentist utterance/fact")
+  else bad("memory dentist", JSON.stringify(memDent.json))
+
+  section("23. Second turn can reference prior dentist context")
+  const cvDent2 = await api("POST", "/api/converse", {
+    transcript: "what's on my plate about the dentist",
+    sessionId: `${dentistSession}-follow`,
+    speak: false,
+  })
+  const dent2 = cvDent2.json?.reply || ""
+  console.log("  reply:", dent2.slice(0, 160))
+  if (
+    /dentist/i.test(dent2) ||
+    (cvDent2.json?.assistant?.memoryHints || []).some((h) => /dentist/i.test(h)) ||
+    (cvDent2.json?.plate || []).some((p) => /dentist/i.test(p.title || ""))
+  ) {
+    ok("second turn references dentist context")
+  } else bad("dentist context", dent2)
+
+  section("24. GET converse returns assistant + plate")
+  const cvGet = await api("GET", "/api/converse")
+  if (cvGet.json?.assistant?.nextAction) ok("GET converse has assistant.nextAction")
+  else bad("GET assistant", JSON.stringify(cvGet.json?.assistant))
+  if (Array.isArray(cvGet.json?.plate)) ok("GET converse has plate array")
+  else bad("GET plate", "missing")
 
   section("20. Optional Groq TTS smoke")
   if (process.env.GROQ_API_KEY) {

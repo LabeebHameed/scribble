@@ -10,6 +10,7 @@ import {
 } from "@workspace/db"
 import { hybridSearch } from "@workspace/mind"
 import { createReminderForTask } from "@/lib/materialize"
+import { rememberConsolidation, rememberFact } from "@/lib/remember"
 
 export type ActionResult = {
   kind: string
@@ -37,6 +38,13 @@ export async function executeIntents(
           status: "open",
         })
         .returning()
+      await rememberFact(
+        db,
+        userId,
+        `Created task: ${intent.title}`,
+        "life_action",
+        t?.id
+      )
       results.push({
         kind: "task",
         summary: `Task: ${intent.title}`,
@@ -65,6 +73,13 @@ export async function executeIntents(
           accepted: true,
         })
       }
+      await rememberFact(
+        db,
+        userId,
+        `Created event: ${intent.title}`,
+        "life_action",
+        ev?.id
+      )
       results.push({
         kind: "event",
         summary: `Event: ${intent.title} at ${intent.start.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}`,
@@ -95,6 +110,13 @@ export async function executeIntents(
         hour: "numeric",
         minute: "2-digit",
       })
+      await rememberFact(
+        db,
+        userId,
+        `Created reminder: ${intent.actionLanguage}`,
+        "life_action",
+        t?.id
+      )
       results.push({
         kind: "reminder",
         summary: `Reminder set for ${when}: ${intent.actionLanguage}`,
@@ -109,6 +131,13 @@ export async function executeIntents(
           notes: intent.notes || null,
         })
         .returning()
+      await rememberFact(
+        db,
+        userId,
+        `Energy logged at ${intent.level}`,
+        "life_action",
+        e?.id
+      )
       results.push({
         kind: "energy",
         summary: `Logged ${intent.level} energy`,
@@ -182,12 +211,19 @@ export async function executeIntents(
         })
         count++
       }
+      const summary =
+        count > 0
+          ? `Proposed ${count} block${count === 1 ? "" : "s"} for today — check Today`
+          : "No blocks to propose yet — capture tasks with durations first"
+      await rememberFact(db, userId, summary, "plan_day")
+      await rememberConsolidation(
+        db,
+        userId,
+        `Day plan: ${count} proposed blocks. ${proposal.slots?.length ?? count} slots.`
+      )
       results.push({
         kind: "plan",
-        summary:
-          count > 0
-            ? `Proposed ${count} block${count === 1 ? "" : "s"} for today — check Today`
-            : "No blocks to propose yet — capture tasks with durations first",
+        summary,
         data: proposal,
       })
     } else if (intent.type === "list_tasks") {
