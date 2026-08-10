@@ -22,7 +22,8 @@ function templateBriefing(input: BriefingInput): string {
   const attention = input.glance.needsAttention.length
 
   if (input.nextAction.source !== "none") {
-    parts.push(`Next: ${input.nextAction.title}. ${input.nextAction.reason}`)
+    const title = input.nextAction.title.replace(/[.!?]+$/, "")
+    parts.push(`Next: ${title}. ${input.nextAction.reason}`)
   } else {
     parts.push(input.nextAction.reason)
   }

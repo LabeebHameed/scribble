@@ -1,5 +1,5 @@
 import { Pressable, StyleSheet, Text, View } from "react-native"
-import { usePathname, useRouter } from "expo-router"
+import { type Href, usePathname, useRouter } from "expo-router"
 
 export function BottomNav() {
   const router = useRouter()
@@ -10,13 +10,13 @@ export function BottomNav() {
   return (
     <View style={styles.bar}>
       <Pressable
-        onPress={() => router.replace("/")}
+        onPress={() => router.replace("/" as Href)}
         style={[styles.item, onToday && styles.active]}
       >
         <Text style={[styles.label, onToday && styles.labelActive]}>Today</Text>
       </Pressable>
       <Pressable
-        onPress={() => router.replace("/plate")}
+        onPress={() => router.replace("/plate" as Href)}
         style={[styles.item, onPlate && styles.active]}
       >
         <Text style={[styles.label, onPlate && styles.labelActive]}>Plate</Text>
