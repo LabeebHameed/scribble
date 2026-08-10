@@ -8,6 +8,7 @@ import {
 } from "@workspace/db"
 import { badRequest, json, withAuth } from "@/lib/api"
 import { activateDueReminders } from "@/lib/materialize"
+import { rememberFact } from "@/lib/remember"
 
 export async function GET() {
   return withAuth(async (user) => {
@@ -148,6 +149,15 @@ export async function PATCH(req: NextRequest) {
           )
         )
         .returning()
+      if (row) {
+        await rememberFact(
+          db,
+          user.id,
+          `Completed reminder: ${row.message || body.id}`,
+          "reminder_outcome",
+          row.id
+        )
+      }
       return json({ instance: row })
     }
 
@@ -162,6 +172,15 @@ export async function PATCH(req: NextRequest) {
           )
         )
         .returning()
+      if (row) {
+        await rememberFact(
+          db,
+          user.id,
+          `Acknowledged reminder: ${row.message || body.id}`,
+          "reminder_outcome",
+          row.id
+        )
+      }
       return json({ instance: row })
     }
 
@@ -182,6 +201,15 @@ export async function PATCH(req: NextRequest) {
           )
         )
         .returning()
+      if (row) {
+        await rememberFact(
+          db,
+          user.id,
+          `Snoozed reminder ${minutes}m: ${row.message || body.id}`,
+          "reminder_outcome",
+          row.id
+        )
+      }
       return json({ instance: row })
     }
 

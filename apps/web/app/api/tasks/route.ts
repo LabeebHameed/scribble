@@ -2,6 +2,7 @@ import { NextRequest } from "next/server"
 import { and, desc, eq } from "drizzle-orm"
 import { getDb, tasks } from "@workspace/db"
 import { badRequest, json, withAuth } from "@/lib/api"
+import { rememberFact } from "@/lib/remember"
 
 export async function GET(req: NextRequest) {
   return withAuth(async (user) => {
@@ -82,6 +83,15 @@ export async function PATCH(req: NextRequest) {
       .set(patch)
       .where(and(eq(tasks.id, body.id), eq(tasks.userId, user.id)))
       .returning()
+    if (row && body.status === "done") {
+      await rememberFact(
+        db,
+        user.id,
+        `Completed task: ${row.title}`,
+        "task_outcome",
+        row.id
+      )
+    }
     return json({ task: row })
   })
 }
